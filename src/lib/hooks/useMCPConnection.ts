@@ -1,0 +1,405 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  ServerCapabilities,
+  Tool,
+  Resource,
+  ResourceTemplate,
+  Prompt,
+  ServerNotification,
+  ClientRequest,
+  ListToolsResultSchema,
+  ListResourcesResultSchema,
+  ListResourceTemplatesResultSchema,
+  ListPromptsResultSchema,
+  ReadResourceResultSchema,
+  GetPromptResultSchema,
+  CallToolResultSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import { MCPServer, ConnectionState } from "@/lib/types/mcp";
+import {
+  getErrorMessage,
+  getDetailedErrorInfo,
+  categorizeConnectionError,
+} from "@/lib/errorUtils";
+
+interface UseMCPConnectionReturn {
+  connectionState: ConnectionState;
+  connect: (server: MCPServer) => Promise<void>;
+  disconnect: () => Promise<void>;
+  listTools: () => Promise<Tool[]>;
+  listResources: () => Promise<Resource[]>;
+  listResourceTemplates: () => Promise<ResourceTemplate[]>;
+  listPrompts: () => Promise<Prompt[]>;
+  readResource: (uri: string) => Promise<any>;
+  getPrompt: (name: string, args?: Record<string, string>) => Promise<any>;
+  callTool: (name: string, args: Record<string, unknown>) => Promise<any>;
+  makeRequest: <T extends z.ZodType>(
+    request: ClientRequest,
+    schema: T
+  ) => Promise<z.output<T>>;
+}
+
+export function useMCPConnection(): UseMCPConnectionReturn {
+  const [connectionState, setConnectionState] = useState<ConnectionState>({
+    status: "disconnected",
+    tools: [],
+    resources: [],
+    resourceTemplates: [],
+    prompts: [],
+    notifications: [],
+  });
+
+  const [mcpClient, setMcpClient] = useState<Client | null>(null);
+  const isConnectingRef = useRef(false);
+  const isUnmountingRef = useRef(false);
+
+  const disconnect = useCallback(async () => {
+    console.log("[MCP] Disconnecting...");
+    if (mcpClient) {
+      try {
+        await mcpClient.close();
+        console.log("[MCP] Client closed successfully");
+      } catch (error) {
+        console.error("[MCP] Error closing client:", error);
+      }
+      setMcpClient(null);
+    }
+
+    setConnectionState({
+      status: "disconnected",
+      tools: [],
+      resources: [],
+      resourceTemplates: [],
+      prompts: [],
+      notifications: [],
+    });
+
+    isConnectingRef.current = false;
+  }, [mcpClient]);
+
+  const connect = useCallback(
+    async (server: MCPServer) => {
+      console.log("[MCP] Connecting to server:", server);
+
+      // Prevent concurrent connections
+      if (isConnectingRef.current) {
+        console.log("[MCP] Connection already in progress, skipping...");
+        return;
+      }
+
+      // Don't connect if we're unmounting
+      if (isUnmountingRef.current) {
+        console.log("[MCP] Component is unmounting, skipping connection...");
+        return;
+      }
+
+      isConnectingRef.current = true;
+
+      // Disconnect any existing connection only if there's an active client
+      if (mcpClient) {
+        await disconnect();
+      }
+
+      setConnectionState((prev) => ({
+        ...prev,
+        status: "connecting",
+        server,
+        error: undefined,
+      }));
+
+      try {
+        const client = new Client(
+          {
+            name: "mcp-swagger",
+            version: "1.0.0",
+          },
+          {
+            capabilities: {},
+          }
+        );
+
+        let transport: any;
+        let connectionError: string | null = null;
+
+        // Use the new unified MCP proxy endpoint (like inspector)
+        const proxyUrl = `/api/mcp?url=${encodeURIComponent(
+          server.url || ""
+        )}&transportType=${server.transport}`;
+
+        console.log("[MCP] Connecting via proxy:", proxyUrl);
+        console.log("[MCP] Transport type:", server.transport);
+        console.log("[MCP] Target URL:", server.url);
+
+        // Create transport that connects to our proxy
+        transport = new StreamableHTTPClientTransport(
+          new URL(proxyUrl, window.location.origin),
+          {
+            requestInit: {
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json, text/event-stream",
+              },
+            },
+          }
+        );
+
+        console.log("[MCP] Transport created");
+
+        // Connect to the server - MCP SDK will handle initialization automatically
+        console.log("[MCP] Connecting to server...");
+        console.log("[MCP] Transport endpoint:", transport.endpoint);
+
+        await client.connect(transport);
+        console.log("[MCP] Client connected successfully!");
+
+        // Give the server a moment to complete the handshake
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        console.log("[MCP] Handshake period complete");
+
+        const capabilities = client.getServerCapabilities();
+        console.log("[MCP] Server capabilities:", capabilities);
+
+        if (!capabilities) {
+          console.warn(
+            "[MCP] Warning: Server capabilities are undefined. This might indicate a connection issue."
+          );
+        } else {
+          console.log("[MCP] Server supports:", {
+            tools: capabilities.tools ? "Yes" : "No",
+            resources: capabilities.resources ? "Yes" : "No",
+            prompts: capabilities.prompts ? "Yes" : "No",
+          });
+        }
+
+        setMcpClient(client);
+        setConnectionState((prev) => ({
+          ...prev,
+          status: "connected",
+          capabilities,
+          error: undefined,
+        }));
+
+        // Fetch initial lists if capabilities support them
+        try {
+          const results = await Promise.allSettled([
+            capabilities.tools
+              ? client.request({ method: "tools/list" }, ListToolsResultSchema)
+              : Promise.resolve({ tools: [] }),
+            capabilities.resources
+              ? client.request(
+                  { method: "resources/list" },
+                  ListResourcesResultSchema
+                )
+              : Promise.resolve({ resources: [] }),
+            capabilities.prompts
+              ? client.request(
+                  { method: "prompts/list" },
+                  ListPromptsResultSchema
+                )
+              : Promise.resolve({ prompts: [] }),
+          ]);
+
+          const [toolsResult, resourcesResult, promptsResult] = results;
+
+          setConnectionState((prev) => ({
+            ...prev,
+            tools:
+              toolsResult.status === "fulfilled" ? toolsResult.value.tools : [],
+            resources:
+              resourcesResult.status === "fulfilled"
+                ? resourcesResult.value.resources
+                : [],
+            prompts:
+              promptsResult.status === "fulfilled"
+                ? promptsResult.value.prompts
+                : [],
+          }));
+
+          console.log("[MCP] Initial lists fetched:", {
+            tools:
+              toolsResult.status === "fulfilled"
+                ? toolsResult.value.tools.length
+                : 0,
+            resources:
+              resourcesResult.status === "fulfilled"
+                ? resourcesResult.value.resources.length
+                : 0,
+            prompts:
+              promptsResult.status === "fulfilled"
+                ? promptsResult.value.prompts.length
+                : 0,
+          });
+        } catch (error) {
+          console.error("[MCP] Error fetching initial lists:", error);
+        }
+
+        // Mark connection as complete
+        isConnectingRef.current = false;
+      } catch (error) {
+        console.error("[MCP] Connection error:", error);
+
+        // Get detailed error information
+        const errorDetails = getDetailedErrorInfo(error);
+        console.error("[MCP] Detailed error info:", errorDetails);
+
+        // Get the basic error message
+        const basicErrorMessage = getErrorMessage(error);
+
+        // Categorize and enhance the error message
+        const categorizedError = categorizeConnectionError(basicErrorMessage);
+        const { userFriendlyMessage } = categorizedError;
+
+        // Fallback for truly undefined errors
+        const finalErrorMessage =
+          basicErrorMessage === "Unknown error occurred"
+            ? "Connection failed: Unable to connect to the MCP server. Check the debug panel for more details."
+            : userFriendlyMessage;
+
+        console.error("[MCP] Final error message:", finalErrorMessage);
+
+        setConnectionState({
+          status: "error",
+          tools: [],
+          resources: [],
+          resourceTemplates: [],
+          prompts: [],
+          notifications: [],
+          error: finalErrorMessage,
+          errorDetails: errorDetails,
+        });
+
+        isConnectingRef.current = false;
+      }
+    },
+    [disconnect]
+  );
+
+  const makeRequest = useCallback(
+    async <T extends z.ZodType>(
+      request: ClientRequest,
+      schema: T
+    ): Promise<z.output<T>> => {
+      if (!mcpClient) {
+        throw new Error("Not connected to MCP server");
+      }
+
+      try {
+        console.log("[MCP] Making request:", request.method);
+        const response = await mcpClient.request(request, schema);
+        console.log("[MCP] Request successful:", request.method);
+        return response;
+      } catch (error) {
+        console.error("[MCP] Request error:", error);
+        throw error;
+      }
+    },
+    [mcpClient]
+  );
+
+  const listTools = useCallback(async (): Promise<Tool[]> => {
+    const response = await makeRequest(
+      { method: "tools/list", params: {} },
+      ListToolsResultSchema
+    );
+
+    const tools = response.tools || [];
+    setConnectionState((prev) => ({ ...prev, tools }));
+    return tools;
+  }, [makeRequest]);
+
+  const listResources = useCallback(async (): Promise<Resource[]> => {
+    const response = await makeRequest(
+      { method: "resources/list", params: {} },
+      ListResourcesResultSchema
+    );
+
+    const resources = response.resources || [];
+    setConnectionState((prev) => ({ ...prev, resources }));
+    return resources;
+  }, [makeRequest]);
+
+  const listResourceTemplates = useCallback(async (): Promise<
+    ResourceTemplate[]
+  > => {
+    const response = await makeRequest(
+      { method: "resources/templates/list", params: {} },
+      ListResourceTemplatesResultSchema
+    );
+
+    const resourceTemplates = response.resourceTemplates || [];
+    setConnectionState((prev) => ({ ...prev, resourceTemplates }));
+    return resourceTemplates;
+  }, [makeRequest]);
+
+  const listPrompts = useCallback(async (): Promise<Prompt[]> => {
+    const response = await makeRequest(
+      { method: "prompts/list", params: {} },
+      ListPromptsResultSchema
+    );
+
+    const prompts = response.prompts || [];
+    setConnectionState((prev) => ({ ...prev, prompts }));
+    return prompts;
+  }, [makeRequest]);
+
+  const readResource = useCallback(
+    async (uri: string) => {
+      return await makeRequest(
+        { method: "resources/read", params: { uri } },
+        ReadResourceResultSchema
+      );
+    },
+    [makeRequest]
+  );
+
+  const getPrompt = useCallback(
+    async (name: string, args: Record<string, string> = {}) => {
+      return await makeRequest(
+        { method: "prompts/get", params: { name, arguments: args } },
+        GetPromptResultSchema
+      );
+    },
+    [makeRequest]
+  );
+
+  const callTool = useCallback(
+    async (name: string, args: Record<string, unknown>) => {
+      return await makeRequest(
+        { method: "tools/call", params: { name, arguments: args } },
+        CallToolResultSchema
+      );
+    },
+    [makeRequest]
+  );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isUnmountingRef.current = true;
+      // Only disconnect if we're actually unmounting, not during re-renders
+      if (mcpClient) {
+        console.log("[MCP] Component unmounting, disconnecting...");
+        disconnect();
+      }
+    };
+  }, [mcpClient, disconnect]);
+
+  return {
+    connectionState,
+    connect,
+    disconnect,
+    listTools,
+    listResources,
+    listResourceTemplates,
+    listPrompts,
+    readResource,
+    getPrompt,
+    callTool,
+    makeRequest,
+  };
+}
