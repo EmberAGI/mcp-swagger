@@ -2,13 +2,6 @@ import { MCPServerConfig } from "@/lib/types/mcp";
 
 export const defaultServerConfig: MCPServerConfig = {
   servers: {
-    emberai: {
-      name: "EmberAI MCP Server",
-      transport: "streamable-http",
-      url: "https://api.emberai.xyz/mcp",
-      description:
-        "EmberAI's powerful MCP server with DeFi tools and AI capabilities",
-    },
     everything: {
       name: "Everything Server",
       transport: "stdio",
@@ -24,8 +17,14 @@ export const defaultServerConfig: MCPServerConfig = {
       args: ["@modelcontextprotocol/server-filesystem", "/tmp"],
       description: "Provides filesystem access capabilities",
     },
+    "remote-example": {
+      name: "Remote Example Server",
+      transport: "streamable-http",
+      url: "https://example.com/mcp",
+      description: "Example remote MCP server via Streamable HTTP",
+    },
   },
-  defaultServer: "emberai",
+  defaultServer: "everything",
 };
 
 export function loadServerConfig(): MCPServerConfig {

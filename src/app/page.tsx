@@ -167,25 +167,46 @@ export default function Home() {
                   <h4 className="font-medium">Advanced Features</h4>
                   <div className="space-y-1">
                     {capabilities.logging && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="border-[#FD6731]/30 text-[#FD6731]">Logging</Badge>
-                        <span className="text-sm text-muted-foreground">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          padding: '0.25rem 0.75rem',
+                          border: '1px solid rgba(253, 103, 49, 0.3)',
+                          borderRadius: '9999px',
+                          color: '#FD6731',
+                          fontSize: '0.75rem',
+                          fontWeight: '500'
+                        }}>Logging</span>
+                        <span style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.6)' }}>
                           Server-side logging
                         </span>
                       </div>
                     )}
                     {capabilities.sampling && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="border-[#FD6731]/30 text-[#FD6731]">Sampling</Badge>
-                        <span className="text-sm text-muted-foreground">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          padding: '0.25rem 0.75rem',
+                          border: '1px solid rgba(253, 103, 49, 0.3)',
+                          borderRadius: '9999px',
+                          color: '#FD6731',
+                          fontSize: '0.75rem',
+                          fontWeight: '500'
+                        }}>Sampling</span>
+                        <span style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.6)' }}>
                           LLM sampling requests
                         </span>
                       </div>
                     )}
                     {capabilities.completions && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="border-[#FD6731]/30 text-[#FD6731]">Completions</Badge>
-                        <span className="text-sm text-muted-foreground">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          padding: '0.25rem 0.75rem',
+                          border: '1px solid rgba(253, 103, 49, 0.3)',
+                          borderRadius: '9999px',
+                          color: '#FD6731',
+                          fontSize: '0.75rem',
+                          fontWeight: '500'
+                        }}>Completions</span>
+                        <span style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.6)' }}>
                           Auto-completion support
                         </span>
                       </div>
@@ -201,42 +222,70 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="bg-gradient-to-r from-[#2A2A2A] to-[#1A1A1A] border-b border-[#FD6731]/20">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <img src="/ember-logo.svg" alt="EmberAI Logo" className="h-8 w-auto" />
-              <div className="flex items-center gap-3">
-                <img src="/ember-name.svg" alt="EmberAI" className="h-5 w-auto" />
-                <div className="w-px h-8 bg-white/20"></div>
-                <div>
-                  <h1 className="text-2xl font-bold text-white">MCP Explorer</h1>
-                  <p className="text-sm text-white/70">
-                    Model Context Protocol API Documentation & Testing Tool
-                  </p>
+    <div style={{ minHeight: '100vh', backgroundColor: '#1a1a1a' }}>
+      <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: '#2a2a2a' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <img src="/Logo (1).svg" alt="EmberAi Logo" style={{ width: '32px', height: '32px' }} />
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <img src="/name.svg" alt="EmberAi" style={{ height: '24px' }} />
+                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#FD6731', marginLeft: '0.5rem' }}>MCP Swagger</span>
                 </div>
+                <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.7)', marginTop: '0.25rem' }}>
+                  Model Context Protocol API Documentation & Testing Tool
+                </p>
               </div>
             </div>
-            <Button
-              variant="outline"
+            <button
               onClick={() => setShowServerConfig(true)}
-              className="bg-[#FD6731]/10 hover:bg-[#FD6731]/20 text-white border-[#FD6731]/30"
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: 'transparent',
+                border: '1px solid #FD6731',
+                borderRadius: '0.375rem',
+                color: '#FD6731',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(253, 103, 49, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
             >
-              <Settings className="w-4 h-4 mr-2" />
+              <Settings style={{ width: '1rem', height: '1rem' }} />
               Configure
-            </Button>
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6 space-y-6">
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 1rem' }}>
         <Collapsible defaultOpen>
-          <CollapsibleTrigger className="flex items-center gap-2 text-lg font-semibold hover:underline">
-            <ChevronDown className="h-5 w-5 transition-transform data-[state=closed]:-rotate-90" />
+          <CollapsibleTrigger style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '1.125rem',
+            fontWeight: '600',
+            color: '#fff',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            marginBottom: '1rem'
+          }}>
+            <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transition: 'transform 0.2s', color: '#FD6731' }} />
             MCP Server Connection
           </CollapsibleTrigger>
-          <CollapsibleContent className="mt-4">
+          <CollapsibleContent style={{ marginTop: '1rem' }}>
             <ServerSelector
               connectionState={connectionState}
               onConnect={handleConnect}
@@ -246,8 +295,15 @@ export default function Home() {
           </CollapsibleContent>
         </Collapsible>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+        <Tabs value={activeTab} onValueChange={setActiveTab} style={{ width: '100%' }}>
+          <TabsList style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            width: '100%',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '0.5rem',
+            padding: '0.25rem'
+          }}>
             <TabsTrigger value="overview">
               <BookOpen className="w-4 h-4 mr-2" />
               Overview

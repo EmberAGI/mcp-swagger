@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EmberAI MCP Explorer",
-  description: "Test and explore MCP servers with EmberAI",
+  title: "EmberAi MCP Swagger",
+  description: "Model Context Protocol API Documentation & Testing Tool by EmberAi",
+  icons: {
+    icon: "/Logo (1).svg",
+  },
 };
 
 export default function RootLayout({
@@ -24,9 +27,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/ember-logo.svg" type="image/svg+xml" />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
