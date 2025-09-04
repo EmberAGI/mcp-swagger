@@ -1,0 +1,9 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/mcp-proxy/route": "app/api/mcp-proxy/route.js",
+  "/api/mcp/route": "app/api/mcp/route.js",
+  "/api/test-url/route": "app/api/test-url/route.js",
+  "/auth/callback/page": "app/auth/callback/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
+}
