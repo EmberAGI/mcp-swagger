@@ -151,9 +151,11 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         }
 
         // Use proxy for CORS handling - construct full proxy URL for fetch
-        const proxyUrl = `${window.location.origin}/api/mcp?url=${encodeURIComponent(
-          server.url || ""
-        )}&transportType=${server.transport}`;
+        const proxyUrl = `${
+          window.location.origin
+        }/api/mcp?url=${encodeURIComponent(server.url || "")}&transportType=${
+          server.transport
+        }`;
 
         const transport: any =
           server.transport === "streamable-http" && server.url

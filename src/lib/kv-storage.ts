@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { kv } from "@vercel/kv";
 
 export interface SessionData {
   sessionId: string;
@@ -8,11 +8,6 @@ export interface SessionData {
   lastAccessed: number;
   isActive: boolean;
 }
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || "",
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
-});
 
 export class KVSessionManager {
   private static instance: KVSessionManager;
@@ -33,7 +28,7 @@ export class KVSessionManager {
   async getSession(sessionId: string): Promise<SessionData | null> {
     try {
       const key = this.getSessionKey(sessionId);
-      const sessionData = await redis.get<SessionData>(key);
+      const sessionData = await kv.get<SessionData>(key);
 
       if (!sessionData) {
         return null;
@@ -48,9 +43,7 @@ export class KVSessionManager {
 
       // Update last accessed time and TTL
       sessionData.lastAccessed = now;
-      await redis.set(key, sessionData, {
-        ex: Math.floor(this.sessionTimeout / 1000),
-      });
+      await kv.set(key, sessionData, { ex: this.sessionTimeout / 1000 });
 
       return sessionData;
     } catch (error) {
@@ -77,9 +70,7 @@ export class KVSessionManager {
           sessionData.isActive !== undefined ? sessionData.isActive : true,
       };
 
-      await redis.set(key, fullSessionData, {
-        ex: Math.floor(this.sessionTimeout / 1000),
-      });
+      await kv.set(key, fullSessionData, { ex: this.sessionTimeout / 1000 });
       console.log(`[KV] Session ${sessionId} stored successfully`);
     } catch (error) {
       console.error("[KV] Error setting session:", error);
@@ -90,7 +81,7 @@ export class KVSessionManager {
   async deleteSession(sessionId: string): Promise<void> {
     try {
       const key = this.getSessionKey(sessionId);
-      await redis.del(key);
+      await kv.del(key);
       console.log(`[KV] Session ${sessionId} deleted successfully`);
     } catch (error) {
       console.error("[KV] Error deleting session:", error);
@@ -122,9 +113,8 @@ export class KVSessionManager {
 
   async listSessions(): Promise<string[]> {
     try {
-      // Upstash doesn't support KEYS over REST; we can track IDs separately if needed.
-      // For now, return empty to avoid expensive scans.
-      return [];
+      const keys = await kv.keys(`${this.sessionPrefix}*`);
+      return keys.map((key) => key.replace(this.sessionPrefix, ""));
     } catch (error) {
       console.error("[KV] Error listing sessions:", error);
       return [];
@@ -132,8 +122,24 @@ export class KVSessionManager {
   }
 
   async cleanupExpiredSessions(): Promise<void> {
-    // No-op for now without key scanning; TTLs handle expiry.
-    return;
+    try {
+      const sessions = await this.listSessions();
+      const now = Date.now();
+
+      for (const sessionId of sessions) {
+        const session = await this.getSession(sessionId);
+        if (!session) {
+          // Session was already expired and deleted
+          continue;
+        }
+
+        if (now - session.lastAccessed > this.sessionTimeout) {
+          await this.deleteSession(sessionId);
+        }
+      }
+    } catch (error) {
+      console.error("[KV] Error cleaning up sessions:", error);
+    }
   }
 }
 
