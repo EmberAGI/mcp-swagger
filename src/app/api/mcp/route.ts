@@ -3,8 +3,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { spawn } from "child_process";
 import { randomUUID } from "crypto";
+import { spawn } from "child_process";
 import { createExpressMocks, createExpressResponse } from "@/lib/express-mock";
 
 // Store transports by session ID
@@ -27,7 +27,11 @@ function mcpProxy({
     transportToServer.send(message).catch((error) => {
       console.error("[MCP Proxy] Error sending to server:", error);
       // Send error response back to client if it was a request
-      if (message.id !== undefined && !transportToClientClosed) {
+      if (
+        "id" in message &&
+        message.id !== undefined &&
+        !transportToClientClosed
+      ) {
         const errorResponse = {
           jsonrpc: "2.0" as const,
           id: message.id,
@@ -46,7 +50,11 @@ function mcpProxy({
     if (!reportedServerSession && "sessionId" in transportToServer) {
       console.log(
         "[MCP Proxy] Server sessionId:",
-        (transportToServer as any).sessionId
+        (
+          transportToServer as StreamableHTTPClientTransport & {
+            sessionId?: string;
+          }
+        ).sessionId
       );
       reportedServerSession = true;
     }
@@ -95,7 +103,7 @@ async function createTransport(
     const transport = new StdioClientTransport({
       command,
       args,
-      env: process.env,
+      env: process.env as Record<string, string>,
     });
     await transport.start();
     return transport;
@@ -368,7 +376,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
+export async function OPTIONS(): Promise<NextResponse> {
   return new NextResponse(null, {
     status: 200,
     headers: {

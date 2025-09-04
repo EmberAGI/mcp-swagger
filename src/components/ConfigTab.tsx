@@ -23,7 +23,7 @@ export function ConfigTab({ onConfigUpdate }: ConfigTabProps) {
     const [editingServer, setEditingServer] = useState<string | null>(null);
     const [serverForm, setServerForm] = useState<MCPServer>({
         name: "",
-        transport: "sse",
+        transport: "streamable-http",
         url: "",
         command: "",
         args: [],
@@ -47,7 +47,7 @@ export function ConfigTab({ onConfigUpdate }: ConfigTabProps) {
 
         const newServer: MCPServer = {
             name: newServerName,
-            transport: "sse",
+            transport: "streamable-http",
             url: "",
             description: ""
         };
@@ -290,7 +290,7 @@ export function ConfigTab({ onConfigUpdate }: ConfigTabProps) {
                                             </Select>
                                         </div>
 
-                                        {serverForm.transport === "sse" && (
+                                        {serverForm.transport === "streamable-http" && (
                                             <div>
                                                 <Label htmlFor="server-url">URL</Label>
                                                 <Input

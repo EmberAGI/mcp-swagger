@@ -42,7 +42,8 @@ export function PromptsTab({
     const [activeTab, setActiveTab] = useState<string>("overview");
 
     const { completions, clearCompletions, requestCompletions } = useCompletionState(
-        handleCompletion || (async () => []),
+        handleCompletion ? (ref: any, argName: string, value: string, context?: Record<string, string>, signal?: AbortSignal) =>
+            handleCompletion(ref, argName, value, context, signal) : (async () => []),
         completionsSupported && !!handleCompletion
     );
 
@@ -167,7 +168,7 @@ export function PromptsTab({
                         <div className="border-t pt-4 space-y-4">
                             <div>
                                 <h5 className="font-medium mb-2">Arguments</h5>
-                                {renderArgumentsSchema(prompt.arguments)}
+                                {renderArgumentsSchema(prompt.arguments || [])}
                             </div>
                         </div>
                     </CardContent>

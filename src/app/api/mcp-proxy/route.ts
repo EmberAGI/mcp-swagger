@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -12,7 +11,10 @@ interface ProxyConfig {
   headers?: Record<string, string>;
 }
 
-let activeTransport: any = null;
+let activeTransport:
+  | StreamableHTTPClientTransport
+  | StdioClientTransport
+  | null = null;
 let sessionId: string | null = null;
 
 export async function POST(request: NextRequest) {
@@ -26,8 +28,11 @@ export async function POST(request: NextRequest) {
         if (typeof activeTransport.close === "function") {
           await activeTransport.close();
         }
-        if (typeof activeTransport.terminateSession === "function") {
-          await activeTransport.terminateSession();
+        if (
+          "terminateSession" in activeTransport &&
+          typeof (activeTransport as any).terminateSession === "function"
+        ) {
+          await (activeTransport as any).terminateSession();
         }
       } catch (e) {
         console.log("[MCP Proxy] Error cleaning up previous transport:", e);
@@ -87,7 +92,10 @@ export async function POST(request: NextRequest) {
         transport = new StdioClientTransport({
           command: cmd,
           args,
-          env: { ...process.env, ...(config.env || {}) },
+          env: { ...process.env, ...(config.env || {}) } as Record<
+            string,
+            string
+          >,
           stderr: "pipe",
         });
 
@@ -139,8 +147,11 @@ export async function DELETE() {
       if (typeof activeTransport.close === "function") {
         await activeTransport.close();
       }
-      if (typeof activeTransport.terminateSession === "function") {
-        await activeTransport.terminateSession();
+      if (
+        "terminateSession" in activeTransport &&
+        typeof (activeTransport as any).terminateSession === "function"
+      ) {
+        await (activeTransport as any).terminateSession();
       }
       activeTransport = null;
       sessionId = null;

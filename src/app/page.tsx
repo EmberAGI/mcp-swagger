@@ -11,12 +11,12 @@ import { AuthTab } from "@/components/AuthTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BookOpen, Code, Database, MessageSquare, Settings, Activity, Lock, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMCPConnection } from "@/lib/hooks/useMCPConnection";
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
+import Image from "next/image";
 
 export default function Home() {
   const [showServerConfig, setShowServerConfig] = useState(false);
@@ -26,10 +26,6 @@ export default function Home() {
     connectionState,
     connect,
     disconnect,
-    listTools,
-    listResources,
-    listResourceTemplates,
-    listPrompts,
     readResource,
     getPrompt,
     callTool,
@@ -57,7 +53,7 @@ export default function Home() {
       );
     }
 
-    const { capabilities, tools, resources, resourceTemplates, prompts } = connectionState;
+    const { capabilities, tools, resources, prompts } = connectionState;
 
     return (
       <div className="space-y-6">
@@ -181,7 +177,7 @@ export default function Home() {
                         </span>
                       </div>
                     )}
-                    {capabilities.sampling && (
+                    {capabilities.sampling ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{
                           padding: '0.25rem 0.75rem',
@@ -195,8 +191,8 @@ export default function Home() {
                           LLM sampling requests
                         </span>
                       </div>
-                    )}
-                    {capabilities.completions && (
+                    ) : null}
+                    {capabilities.completions ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{
                           padding: '0.25rem 0.75rem',
@@ -210,7 +206,7 @@ export default function Home() {
                           Auto-completion support
                         </span>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -227,10 +223,10 @@ export default function Home() {
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <img src="/Logo (1).svg" alt="EmberAi Logo" style={{ width: '32px', height: '32px' }} />
+              <Image src="/Logo (1).svg" alt="EmberAi Logo" width={32} height={32} />
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <img src="/name.svg" alt="EmberAi" style={{ height: '24px' }} />
+                  <Image src="/name.svg" alt="EmberAi" width={144} height={25} />
                   <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#FD6731', marginLeft: '0.5rem' }}>MCP Explorer</span>
                 </div>
                 <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.7)', marginTop: '0.25rem' }}>

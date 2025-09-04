@@ -22,7 +22,10 @@ export function loadServerConfig(): MCPServerConfig {
     const stored = localStorage.getItem("mcp-swagger-config");
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { ...defaultServerConfig, ...parsed };
+      // Always ensure EmberAI server is present
+      const config = { ...defaultServerConfig, ...parsed };
+      config.servers = { ...defaultServerConfig.servers, ...parsed.servers };
+      return config;
     }
   } catch (error) {
     console.warn("Failed to load server config:", error);
@@ -40,5 +43,17 @@ export function saveServerConfig(config: MCPServerConfig) {
     localStorage.setItem("mcp-swagger-config", JSON.stringify(config));
   } catch (error) {
     console.error("Failed to save server config:", error);
+  }
+}
+
+export function resetServerConfig() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    localStorage.removeItem("mcp-swagger-config");
+  } catch (error) {
+    console.error("Failed to reset server config:", error);
   }
 }

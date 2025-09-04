@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface JsonViewProps {
-    data: any;
+    data: unknown;
     className?: string;
     defaultExpanded?: boolean;
 }
@@ -28,7 +28,7 @@ export default function JsonView({ data, className, defaultExpanded = true }: Js
         }));
     };
 
-    const renderValue = (value: any, path: string = "", depth: number = 0): React.ReactNode => {
+    const renderValue = (value: unknown, path: string = "", depth: number = 0): React.ReactNode => {
         if (value === null) return <span className="text-red-500">null</span>;
         if (value === undefined) return <span className="text-gray-500">undefined</span>;
 
@@ -90,7 +90,7 @@ export default function JsonView({ data, className, defaultExpanded = true }: Js
                         <div className="ml-4">
                             {keys.map(key => (
                                 <div key={key} className="my-1">
-                                    <span className="text-purple-600">"{key}"</span>: {renderValue(value[key], `${path}.${key}`, depth + 1)}
+                                    <span className="text-purple-600">"{key}"</span>: {renderValue((value as Record<string, unknown>)[key], `${path}.${key}`, depth + 1)}
                                 </div>
                             ))}
                         </div>

@@ -1,5 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
+interface TestResult {
+  url: string;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  accessible: boolean;
+  supportsStreamableHTTP: boolean;
+  timestamp: string;
+  streamableHTTPTest?: {
+    status: number;
+    statusText: string;
+    contentType: string | null;
+    accessible: boolean;
+    error?: string;
+  };
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const testUrl = searchParams.get("url");
@@ -28,37 +45,67 @@ export async function GET(request: NextRequest) {
       Object.fromEntries(response.headers.entries())
     );
 
-    const result = {
+    const result: TestResult = {
       url: testUrl,
       status: response.status,
       statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries()),
       accessible: response.ok,
-      supportsSSE:
-        response.headers.get("content-type")?.includes("text/event-stream") ||
-        false,
+      supportsStreamableHTTP: false,
       timestamp: new Date().toISOString(),
     };
 
-    // Also test with SSE headers
+    // Test Streamable HTTP support
     try {
-      const sseResponse = await fetch(testUrl, {
+      const streamableResponse = await fetch(testUrl, {
+        method: "POST",
         headers: {
-          Accept: "text/event-stream",
-          "Cache-Control": "no-cache",
+          "Content-Type": "application/json",
+          Accept: "text/event-stream, application/json",
           "User-Agent": "MCP-Swagger-Test/1.0",
         },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "initialize",
+          id: 1,
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: {
+              name: "mcp-swagger-test",
+              version: "1.0.0",
+            },
+          },
+        }),
       });
 
-      result.sseTest = {
-        status: sseResponse.status,
-        statusText: sseResponse.statusText,
-        contentType: sseResponse.headers.get("content-type"),
-        accessible: sseResponse.ok,
+      result.streamableHTTPTest = {
+        status: streamableResponse.status,
+        statusText: streamableResponse.statusText,
+        contentType: streamableResponse.headers.get("content-type"),
+        accessible: streamableResponse.ok,
       };
-    } catch (sseError) {
-      result.sseTest = {
-        error: sseError instanceof Error ? sseError.message : String(sseError),
+
+      result.supportsStreamableHTTP =
+        streamableResponse.ok &&
+        ((streamableResponse.headers
+          .get("content-type")
+          ?.includes("text/event-stream") ??
+          false) ||
+          (streamableResponse.headers
+            .get("content-type")
+            ?.includes("application/json") ??
+            false));
+    } catch (streamableError) {
+      result.streamableHTTPTest = {
+        status: 0,
+        statusText: "Error",
+        contentType: null,
+        accessible: false,
+        error:
+          streamableError instanceof Error
+            ? streamableError.message
+            : String(streamableError),
       };
     }
 
@@ -74,4 +121,3 @@ export async function GET(request: NextRequest) {
     });
   }
 }
-

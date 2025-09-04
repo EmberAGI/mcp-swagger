@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Lock, Key, RefreshCw, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { ConnectionState } from "@/lib/types/mcp";
 
 interface OAuthConfig {
     clientId: string;
@@ -23,10 +24,10 @@ interface AuthToken {
 }
 
 interface AuthTabProps {
-    connectionState: any;
+    connectionState: ConnectionState;
 }
 
-export function AuthTab({ connectionState }: AuthTabProps) {
+export function AuthTab({ }: AuthTabProps) {
     const [oauthConfig, setOauthConfig] = useState<OAuthConfig>({
         clientId: "",
         scope: "",
@@ -62,7 +63,7 @@ export function AuthTab({ connectionState }: AuthTabProps) {
         localStorage.setItem("mcp-auth-tokens", JSON.stringify(tokens));
     };
 
-    const handleStartOAuth = () => {
+    const handleStartOAuth = async () => {
         if (!oauthConfig.clientId || !oauthConfig.authorizationUrl) {
             setAuthError("Client ID and Authorization URL are required");
             return;
@@ -73,7 +74,7 @@ export function AuthTab({ connectionState }: AuthTabProps) {
 
         // Generate PKCE code verifier and challenge
         const codeVerifier = generateCodeVerifier();
-        const codeChallenge = generateCodeChallenge(codeVerifier);
+        const codeChallenge = await generateCodeChallenge(codeVerifier);
 
         // Store code verifier for later
         sessionStorage.setItem("mcp-pkce-verifier", codeVerifier);
@@ -295,7 +296,7 @@ export function AuthTab({ connectionState }: AuthTabProps) {
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
-                                                        onClick={() => navigator.clipboard.writeText(authTokens.refreshToken)}
+                                                        onClick={() => navigator.clipboard.writeText(authTokens.refreshToken || '')}
                                                     >
                                                         Copy
                                                     </Button>
@@ -383,14 +384,16 @@ function generateCodeVerifier(): string {
     return base64URLEncode(array);
 }
 
-function generateCodeChallenge(verifier: string): string {
-    return base64URLEncode(sha256(verifier));
+async function generateCodeChallenge(verifier: string): Promise<string> {
+    const hash = await sha256(verifier);
+    return base64URLEncode(hash);
 }
 
-function sha256(message: string): Uint8Array {
+async function sha256(message: string): Promise<Uint8Array> {
     const encoder = new TextEncoder();
     const data = encoder.encode(message);
-    return crypto.subtle.digest("SHA-256", data).then((hash) => new Uint8Array(hash));
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    return new Uint8Array(hash);
 }
 
 function base64URLEncode(array: Uint8Array): string {

@@ -4,12 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
-  ServerCapabilities,
   Tool,
   Resource,
   ResourceTemplate,
   Prompt,
-  ServerNotification,
   ClientRequest,
   ListToolsResultSchema,
   ListResourcesResultSchema,
@@ -45,6 +43,16 @@ interface UseMCPConnectionReturn {
     request: ClientRequest,
     schema: T
   ) => Promise<z.output<T>>;
+  handleCompletion: (
+    ref:
+      | { type: "ref/resource"; uri: string }
+      | { type: "ref/prompt"; name: string },
+    argName: string,
+    value: string,
+    context?: Record<string, string>,
+    signal?: AbortSignal
+  ) => Promise<string[]>;
+  completionsSupported: boolean;
 }
 
 export function useMCPConnection(): UseMCPConnectionReturn {
@@ -127,30 +135,49 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           }
         );
 
-        let transport: any;
-        let connectionError: string | null = null;
-
         // Use the new unified MCP proxy endpoint (like inspector)
         const proxyUrl = `/api/mcp?url=${encodeURIComponent(
           server.url || ""
         )}&transportType=${server.transport}`;
 
+        const transport: any =
+          server.transport === "streamable-http" && server.url
+            ? new StreamableHTTPClientTransport(
+                new URL(proxyUrl, window.location.origin),
+                {
+                  requestInit: {
+                    headers: {
+                      "User-Agent": "MCP-Swagger/1.0",
+                      "Content-Type": "application/json",
+                      Accept: "text/event-stream, application/json",
+                    },
+                  },
+                }
+              )
+            : server.transport === "stdio" && server.command
+            ? new StreamableHTTPClientTransport(
+                new URL(proxyUrl, window.location.origin),
+                {
+                  requestInit: {
+                    headers: {
+                      "User-Agent": "MCP-Swagger/1.0",
+                      "Content-Type": "application/json",
+                      Accept: "text/event-stream, application/json",
+                    },
+                  },
+                }
+              )
+            : null;
+
+        if (!transport) {
+          throw new Error(
+            `Transport type ${server.transport} not yet implemented`
+          );
+        }
+
         console.log("[MCP] Connecting via proxy:", proxyUrl);
         console.log("[MCP] Transport type:", server.transport);
         console.log("[MCP] Target URL:", server.url);
-
-        // Create transport that connects to our proxy
-        transport = new StreamableHTTPClientTransport(
-          new URL(proxyUrl, window.location.origin),
-          {
-            requestInit: {
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json, text/event-stream",
-              },
-            },
-          }
-        );
 
         console.log("[MCP] Transport created");
 
@@ -191,16 +218,16 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         // Fetch initial lists if capabilities support them
         try {
           const results = await Promise.allSettled([
-            capabilities.tools
+            capabilities?.tools
               ? client.request({ method: "tools/list" }, ListToolsResultSchema)
               : Promise.resolve({ tools: [] }),
-            capabilities.resources
+            capabilities?.resources
               ? client.request(
                   { method: "resources/list" },
                   ListResourcesResultSchema
                 )
               : Promise.resolve({ resources: [] }),
-            capabilities.prompts
+            capabilities?.prompts
               ? client.request(
                   { method: "prompts/list" },
                   ListPromptsResultSchema
@@ -280,7 +307,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         isConnectingRef.current = false;
       }
     },
-    [disconnect]
+    [disconnect, mcpClient]
   );
 
   const makeRequest = useCallback(
@@ -413,9 +440,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
       }
 
       try {
-        const response = await makeRequest(request, CompleteResultSchema, {
-          signal,
-        });
+        const response = await makeRequest(request, CompleteResultSchema);
         return response?.completion.values || [];
       } catch (e: unknown) {
         // Disable completions silently if the server doesn't support them

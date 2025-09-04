@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Play, Square, Settings, Link, Server, Copy } from "lucide-react";
 import { MCPServer, ConnectionState, TransportType } from "@/lib/types/mcp";
-import { loadServerConfig } from "@/config/servers";
+import { loadServerConfig, resetServerConfig } from "@/config/servers";
 import { CorsErrorHelp } from "./CorsErrorHelp";
 import { DebugPanel } from "./DebugPanel";
 import { SessionMCPHelp } from "./SessionMCPHelp";
@@ -28,15 +28,41 @@ export function ServerSelector({
     onDisconnect,
     onConfigureServers,
 }: ServerSelectorProps) {
-    const serverConfig = loadServerConfig();
-    const [selectedServerId, setSelectedServerId] = useState<string>(serverConfig.defaultServer || "emberai");
+    const [selectedServerId, setSelectedServerId] = useState<string>("emberai");
     const [customUrl, setCustomUrl] = useState<string>("https://api.emberai.xyz/mcp");
     const [connectionMode, setConnectionMode] = useState<"preset" | "custom">("preset");
     const [transportType, setTransportType] = useState<TransportType>("streamable-http");
     const [sessionId, setSessionId] = useState<string>("");
     const [availableSessionId, setAvailableSessionId] = useState<string>("");
+    const [serverConfig, setServerConfig] = useState<any>({
+        servers: {
+            emberai: {
+                name: "EmberAI MCP Server",
+                transport: "streamable-http",
+                url: "https://api.emberai.xyz/mcp",
+                description: "EmberAI's Model Context Protocol server with DeFi tools and blockchain capabilities",
+            },
+        },
+        defaultServer: "emberai",
+    });
 
-    const selectedServer = selectedServerId ? serverConfig.servers[selectedServerId] : null;
+    // Load server config on client side only to avoid hydration mismatch
+    useEffect(() => {
+        // Reset any old config to ensure clean state
+        resetServerConfig();
+        const config = loadServerConfig();
+        console.log("Loaded server config:", config);
+        setServerConfig(config);
+    }, []);
+
+    // Update transport type when selected server changes
+    useEffect(() => {
+        if (serverConfig?.servers[selectedServerId]) {
+            setTransportType(serverConfig.servers[selectedServerId].transport);
+        }
+    }, [selectedServerId, serverConfig]);
+
+    const selectedServer = selectedServerId && serverConfig?.servers ? serverConfig.servers[selectedServerId] : null;
     const isConnected = connectionState.status === "connected";
     const isConnecting = connectionState.status === "connecting";
 
@@ -139,6 +165,7 @@ export function ServerSelector({
     const canConnect = connectionMode === "preset" ? selectedServer :
         (connectionMode === "custom" && customUrl.trim());
 
+
     return (
         <Card className="w-full">
             <CardHeader>
@@ -211,9 +238,9 @@ export function ServerSelector({
                                     {Object.entries(serverConfig.servers).map(([id, server]) => (
                                         <SelectItem key={id} value={id}>
                                             <div className="flex items-center gap-2">
-                                                <span>{server.name}</span>
+                                                <span>{(server as any).name}</span>
                                                 <Badge variant="outline" className="text-xs">
-                                                    {server.transport}
+                                                    {(server as any).transport}
                                                 </Badge>
                                             </div>
                                         </SelectItem>

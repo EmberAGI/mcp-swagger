@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextRequest } from "next/server";
 import { Readable } from "stream";
 
@@ -7,7 +9,7 @@ import { Readable } from "stream";
 export function createExpressMocks(
   request: NextRequest,
   body?: string,
-  parsedBody?: any
+  parsedBody?: unknown
 ) {
   // Create a readable stream from the body
   const bodyStream = new Readable({
