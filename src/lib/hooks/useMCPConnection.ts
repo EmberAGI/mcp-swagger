@@ -82,6 +82,11 @@ export function useMCPConnection(): UseMCPConnectionReturn {
       setMcpClient(null);
     }
 
+    // Clear session from localStorage
+    if (connectionState.server?.url) {
+      localStorage.removeItem(`mcp-session-${connectionState.server.url}`);
+    }
+
     setConnectionState({
       status: "disconnected",
       tools: [],
@@ -92,7 +97,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     });
 
     isConnectingRef.current = false;
-  }, [mcpClient]);
+  }, [mcpClient, connectionState.server?.url]);
 
   const connect = useCallback(
     async (server: MCPServer) => {
@@ -135,10 +140,17 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           }
         );
 
-        // Use the new unified MCP proxy endpoint (like inspector)
+        // Use proxy for CORS handling
         const proxyUrl = `/api/mcp?url=${encodeURIComponent(
           server.url || ""
         )}&transportType=${server.transport}`;
+
+        // Get or create session ID
+        let sessionId = localStorage.getItem(`mcp-session-${server.url}`);
+        if (!sessionId) {
+          sessionId = crypto.randomUUID();
+          localStorage.setItem(`mcp-session-${server.url}`, sessionId);
+        }
 
         const transport: any =
           server.transport === "streamable-http" && server.url
@@ -150,19 +162,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
                       "User-Agent": "MCP-Swagger/1.0",
                       "Content-Type": "application/json",
                       Accept: "text/event-stream, application/json",
-                    },
-                  },
-                }
-              )
-            : server.transport === "stdio" && server.command
-            ? new StreamableHTTPClientTransport(
-                new URL(proxyUrl, window.location.origin),
-                {
-                  requestInit: {
-                    headers: {
-                      "User-Agent": "MCP-Swagger/1.0",
-                      "Content-Type": "application/json",
-                      Accept: "text/event-stream, application/json",
+                      "mcp-session-id": sessionId,
                     },
                   },
                 }
