@@ -5,9 +5,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { randomUUID } from "crypto";
 import { createExpressMocks, createExpressResponse } from "@/lib/express-mock";
-import { sessionManager } from "@/lib/kv-storage";
 
-// Store active transports by session ID (for current request only)
+// Store transports by session ID
 const webAppTransports = new Map<string, StreamableHTTPServerTransport>();
 const serverTransports = new Map<string, Transport>();
 
@@ -175,8 +174,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
-    let url = searchParams.get("url");
-    let transportType = searchParams.get("transportType") || "streamable-http";
+    const url = searchParams.get("url");
+    const transportType =
+      searchParams.get("transportType") || "streamable-http";
     const sessionId = request.headers.get("mcp-session-id");
 
     console.log(
@@ -185,32 +185,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Handle existing session
     if (sessionId) {
-      // First check in-memory cache
-      let transport = webAppTransports.get(sessionId);
-
+      const transport = webAppTransports.get(sessionId);
       if (!transport) {
-        // Check KV storage for session metadata
+        // Session not found - create new session with provided session ID
         console.log(
-          `[MCP API] Checking KV storage for session ${sessionId}...`
+          `[MCP API] Session ${sessionId} not found, creating new session...`
         );
-        const sessionData = await sessionManager.getSession(sessionId);
-
-        if (sessionData && sessionData.isActive) {
-          console.log(
-            `[MCP API] Session ${sessionId} found in KV storage, recreating transports...`
-          );
-          console.log(`[MCP API] Stored session data:`, sessionData);
-          // Use the stored URL and transport type
-          url = sessionData.url;
-          transportType = sessionData.transportType;
-        } else {
-          console.log(
-            `[MCP API] Session ${sessionId} not found in KV storage, creating new session...`
-          );
-          if (sessionData) {
-            console.log(`[MCP API] Found inactive session:`, sessionData);
-          }
-        }
 
         if (!url) {
           return NextResponse.json(
@@ -231,18 +211,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           headers["Authorization"] = authHeader;
         }
 
-        // Create server transport and establish connection
+        // Create server transport
         let serverTransport: Transport;
         try {
           serverTransport = await createTransport(url, transportType, headers);
           console.log(
-            "[MCP API] Created and connected server transport for session recreation"
+            "[MCP API] Created server transport for session recreation"
           );
         } catch (error: any) {
-          console.error(
-            "[MCP API] Failed to create/connect server transport:",
-            error
-          );
+          console.error("[MCP API] Failed to create server transport:", error);
           return NextResponse.json(
             {
               error: "Failed to connect to MCP server",
@@ -255,24 +232,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Create web app transport with the provided session ID
         const webAppTransport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => sessionId,
-          onsessioninitialized: async (newSessionId) => {
+          onsessioninitialized: (newSessionId) => {
             webAppTransports.set(newSessionId, webAppTransport);
             serverTransports.set(newSessionId, serverTransport);
-
-            // Store session metadata in KV
-            await sessionManager.setSession(newSessionId, {
-              sessionId: newSessionId,
-              url: url!,
-              transportType: transportType,
-              isActive: true,
-            });
-
-            console.log(
-              `[MCP API] Session recreated and stored: ${newSessionId}`
-            );
-            console.log(
-              `[MCP API] Recreated session with URL: ${url}, transport: ${transportType}`
-            );
+            console.log(`[MCP API] Session recreated: ${newSessionId}`);
           },
         });
 
@@ -404,20 +367,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Create web app transport with session management
     const webAppTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: randomUUID,
-      onsessioninitialized: async (newSessionId) => {
+      onsessioninitialized: (newSessionId) => {
         webAppTransports.set(newSessionId, webAppTransport);
         serverTransports.set(newSessionId, serverTransport);
-
-        // Store session metadata in KV
-        await sessionManager.setSession(newSessionId, {
-          sessionId: newSessionId,
-          url: url!,
-          transportType: transportType,
-          isActive: true,
-        });
-
         console.log(
-          `[MCP API] Session initialized and stored: ${newSessionId}`
+          `[MCP API] Session initialized: Client <-> Proxy sessionId: ${newSessionId}`
         );
       },
     });
@@ -506,10 +460,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     serverTransports.delete(sessionId);
     webAppTransports.delete(sessionId);
 
-    // Mark session as inactive in KV
-    await sessionManager.updateSession(sessionId, { isActive: false });
-
-    console.log(`[MCP API] Session ${sessionId} deleted and marked inactive`);
+    console.log(`[MCP API] Session ${sessionId} deleted`);
 
     return new NextResponse(null, { status: 200 });
   } catch (error: any) {
