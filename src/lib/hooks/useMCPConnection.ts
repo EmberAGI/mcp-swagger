@@ -145,11 +145,14 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           server.url || ""
         )}&transportType=${server.transport}`;
 
-        // Get or create session ID
+        // Get or create session ID from localStorage
         let sessionId = localStorage.getItem(`mcp-session-${server.url}`);
         if (!sessionId) {
           sessionId = crypto.randomUUID();
           localStorage.setItem(`mcp-session-${server.url}`, sessionId);
+          console.log(`[MCP] Generated new session ID: ${sessionId}`);
+        } else {
+          console.log(`[MCP] Using existing session ID: ${sessionId}`);
         }
 
         const transport: any =

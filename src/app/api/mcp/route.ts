@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { randomUUID } from "crypto";
 import { createExpressMocks, createExpressResponse } from "@/lib/express-mock";
 
-// Store active transports by session ID (will be cleared between serverless invocations)
+// Store transports by session ID
 const webAppTransports = new Map<string, StreamableHTTPServerTransport>();
 const serverTransports = new Map<string, Transport>();
 
@@ -19,10 +20,12 @@ function mcpProxy({
 }) {
   let transportToClientClosed = false;
   let transportToServerClosed = false;
+  let reportedServerSession = false;
 
   transportToClient.onmessage = (message) => {
     transportToServer.send(message).catch((error) => {
       console.error("[MCP Proxy] Error sending to server:", error);
+      // Send error response back to client if it was a request
       if (
         "id" in message &&
         message.id !== undefined &&
@@ -43,6 +46,17 @@ function mcpProxy({
   };
 
   transportToServer.onmessage = (message) => {
+    if (!reportedServerSession && "sessionId" in transportToServer) {
+      console.log(
+        "[MCP Proxy] Server sessionId:",
+        (
+          transportToServer as StreamableHTTPClientTransport & {
+            sessionId?: string;
+          }
+        ).sessionId
+      );
+      reportedServerSession = true;
+    }
     transportToClient.send(message).catch(console.error);
   };
 
@@ -67,16 +81,34 @@ function mcpProxy({
   };
 }
 
-// Create server transport
-async function createServerTransport(
+// Create transport based on type
+async function createTransport(
   url: string,
+  transportType: string,
   headers: Record<string, string>
 ): Promise<Transport> {
-  const transport = new StreamableHTTPClientTransport(new URL(url), {
-    requestInit: { headers },
-  });
-  await transport.start();
-  return transport;
+  if (transportType === "streamable-http") {
+    const transport = new StreamableHTTPClientTransport(new URL(url), {
+      requestInit: { headers },
+    });
+    await transport.start();
+    return transport;
+  } else if (transportType === "stdio") {
+    // Parse command and args from URL
+    const urlObj = new URL(url);
+    const command = urlObj.searchParams.get("command") || "";
+    const args = JSON.parse(urlObj.searchParams.get("args") || "[]");
+
+    const transport = new StdioClientTransport({
+      command,
+      args,
+      env: process.env as Record<string, string>,
+    });
+    await transport.start();
+    return transport;
+  } else {
+    throw new Error(`Unsupported transport type: ${transportType}`);
+  }
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -97,10 +129,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
+    // Create proper Express mocks
     const mockReq = createExpressMocks(request);
 
+    // Create a proper response handler
     return new Promise<NextResponse>((resolve) => {
       const mockRes = createExpressResponse((result) => {
+        // Add CORS headers
         result.headers.set("Access-Control-Allow-Origin", "*");
         result.headers.set(
           "Access-Control-Allow-Methods",
@@ -150,19 +185,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Handle existing session
     if (sessionId) {
-      console.log(`[MCP API] Looking for session ${sessionId}`);
-      console.log(
-        `[MCP API] Available sessions:`,
-        Array.from(webAppTransports.keys())
-      );
-
       const transport = webAppTransports.get(sessionId);
       if (!transport) {
+        // Session not found - create new session with provided session ID
         console.log(
           `[MCP API] Session ${sessionId} not found, creating new session...`
         );
 
-        // Create new session if not found (serverless environment)
         if (!url) {
           return NextResponse.json(
             { error: "Missing URL for new session" },
@@ -185,9 +214,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Create server transport
         let serverTransport: Transport;
         try {
-          serverTransport = await createServerTransport(url, headers);
+          serverTransport = await createTransport(url, transportType, headers);
           console.log(
-            "[MCP API] Created server transport for existing session"
+            "[MCP API] Created server transport for session recreation"
           );
         } catch (error: any) {
           console.error("[MCP API] Failed to create server transport:", error);
@@ -211,7 +240,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         });
 
         await webAppTransport.start();
-        console.log("[MCP API] Started web app transport for existing session");
+        console.log(
+          "[MCP API] Started web app transport for session recreation"
+        );
 
         // Setup proxy between transports
         mcpProxy({
@@ -261,10 +292,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const body = await request.text();
       const parsedBody = body ? JSON.parse(body) : undefined;
+
+      // Create proper Express mocks
       const mockReq = createExpressMocks(request, body, parsedBody);
 
       return new Promise((resolve) => {
         const mockRes = createExpressResponse((result) => {
+          // Add CORS headers
           result.headers.set("Access-Control-Allow-Origin", "*");
           result.headers.set(
             "Access-Control-Allow-Methods",
@@ -320,7 +354,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Create server transport
     let serverTransport: Transport;
     try {
-      serverTransport = await createServerTransport(url, headers);
+      serverTransport = await createTransport(url, transportType, headers);
       console.log("[MCP API] Created server transport");
     } catch (error: any) {
       console.error("[MCP API] Failed to create server transport:", error);
@@ -336,7 +370,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       onsessioninitialized: (newSessionId) => {
         webAppTransports.set(newSessionId, webAppTransport);
         serverTransports.set(newSessionId, serverTransport);
-        console.log(`[MCP API] Session initialized: ${newSessionId}`);
+        console.log(
+          `[MCP API] Session initialized: Client <-> Proxy sessionId: ${newSessionId}`
+        );
       },
     });
 
@@ -352,10 +388,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Handle the initial request
     const body = await request.text();
     const parsedBody = body ? JSON.parse(body) : undefined;
+
+    // Create proper Express mocks
     const mockReq = createExpressMocks(request, body, parsedBody);
 
     return new Promise((resolve) => {
       const mockRes = createExpressResponse((result) => {
+        // Add CORS headers
         result.headers.set("Access-Control-Allow-Origin", "*");
         result.headers.set(
           "Access-Control-Allow-Methods",
