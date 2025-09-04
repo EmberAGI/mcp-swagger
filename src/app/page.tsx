@@ -13,7 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Code, Database, MessageSquare, Settings, Activity, Lock } from "lucide-react";
+import { BookOpen, Code, Database, MessageSquare, Settings, Activity, Lock, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMCPConnection } from "@/lib/hooks/useMCPConnection";
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
 
@@ -33,6 +34,8 @@ export default function Home() {
     getPrompt,
     callTool,
     makeRequest,
+    handleCompletion,
+    completionsSupported,
   } = useMCPConnection();
 
   const handleConnect = async (server: MCPServer) => {
@@ -165,7 +168,7 @@ export default function Home() {
                   <div className="space-y-1">
                     {capabilities.logging && (
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">Logging</Badge>
+                        <Badge variant="outline" className="border-[#FD6731]/30 text-[#FD6731]">Logging</Badge>
                         <span className="text-sm text-muted-foreground">
                           Server-side logging
                         </span>
@@ -173,7 +176,7 @@ export default function Home() {
                     )}
                     {capabilities.sampling && (
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">Sampling</Badge>
+                        <Badge variant="outline" className="border-[#FD6731]/30 text-[#FD6731]">Sampling</Badge>
                         <span className="text-sm text-muted-foreground">
                           LLM sampling requests
                         </span>
@@ -181,7 +184,7 @@ export default function Home() {
                     )}
                     {capabilities.completions && (
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">Completions</Badge>
+                        <Badge variant="outline" className="border-[#FD6731]/30 text-[#FD6731]">Completions</Badge>
                         <span className="text-sm text-muted-foreground">
                           Auto-completion support
                         </span>
@@ -199,21 +202,27 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b">
+      <div className="bg-gradient-to-r from-[#2A2A2A] to-[#1A1A1A] border-b border-[#FD6731]/20">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">MCP Swagger</h1>
-                <p className="text-sm text-muted-foreground">
-                  Model Context Protocol API Documentation & Testing Tool
-                </p>
+            <div className="flex items-center gap-4">
+              <img src="/ember-logo.svg" alt="EmberAI Logo" className="h-8 w-auto" />
+              <div className="flex items-center gap-3">
+                <img src="/ember-name.svg" alt="EmberAI" className="h-5 w-auto" />
+                <div className="w-px h-8 bg-white/20"></div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white">MCP Explorer</h1>
+                  <p className="text-sm text-white/70">
+                    Model Context Protocol API Documentation & Testing Tool
+                  </p>
+                </div>
               </div>
             </div>
-            <Button variant="outline" onClick={() => setShowServerConfig(true)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowServerConfig(true)}
+              className="bg-[#FD6731]/10 hover:bg-[#FD6731]/20 text-white border-[#FD6731]/30"
+            >
               <Settings className="w-4 h-4 mr-2" />
               Configure
             </Button>
@@ -222,16 +231,20 @@ export default function Home() {
       </div>
 
       <div className="container mx-auto px-4 py-6 space-y-6">
-        <ServerSelector
-          connectionState={connectionState}
-          onConnect={handleConnect}
-          onDisconnect={disconnect}
-          onConfigureServers={() => setShowServerConfig(true)}
-          onSessionIdGenerated={(sessionId) => {
-            console.log("[UI] Session ID auto-generated:", sessionId);
-            // Could show a toast notification here
-          }}
-        />
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="flex items-center gap-2 text-lg font-semibold hover:underline">
+            <ChevronDown className="h-5 w-5 transition-transform data-[state=closed]:-rotate-90" />
+            MCP Server Connection
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-4">
+            <ServerSelector
+              connectionState={connectionState}
+              onConnect={handleConnect}
+              onDisconnect={disconnect}
+              onConfigureServers={() => setShowServerConfig(true)}
+            />
+          </CollapsibleContent>
+        </Collapsible>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-7">
@@ -300,6 +313,8 @@ export default function Home() {
               prompts={connectionState.prompts}
               onGetPrompt={getPrompt}
               isConnected={connectionState.status === "connected"}
+              handleCompletion={handleCompletion}
+              completionsSupported={completionsSupported}
             />
           </TabsContent>
 

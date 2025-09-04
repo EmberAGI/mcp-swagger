@@ -18,6 +18,9 @@ import {
   ReadResourceResultSchema,
   GetPromptResultSchema,
   CallToolResultSchema,
+  CompleteResultSchema,
+  McpError,
+  ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { MCPServer, ConnectionState } from "@/lib/types/mcp";
@@ -55,6 +58,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
   });
 
   const [mcpClient, setMcpClient] = useState<Client | null>(null);
+  const [completionsSupported, setCompletionsSupported] = useState(true);
   const isConnectingRef = useRef(false);
   const isUnmountingRef = useRef(false);
 
@@ -377,6 +381,54 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     [makeRequest]
   );
 
+  const handleCompletion = useCallback(
+    async (
+      ref:
+        | { type: "ref/resource"; uri: string }
+        | { type: "ref/prompt"; name: string },
+      argName: string,
+      value: string,
+      context?: Record<string, string>,
+      signal?: AbortSignal
+    ): Promise<string[]> => {
+      if (!mcpClient || !completionsSupported) {
+        return [];
+      }
+
+      const request: ClientRequest = {
+        method: "completion/complete",
+        params: {
+          ref,
+          argument: {
+            name: argName,
+            value,
+          },
+        },
+      };
+
+      if (context) {
+        (request.params as any).context = {
+          arguments: context,
+        };
+      }
+
+      try {
+        const response = await makeRequest(request, CompleteResultSchema, {
+          signal,
+        });
+        return response?.completion.values || [];
+      } catch (e: unknown) {
+        // Disable completions silently if the server doesn't support them
+        if (e instanceof McpError && e.code === ErrorCode.MethodNotFound) {
+          setCompletionsSupported(false);
+          return [];
+        }
+        throw e;
+      }
+    },
+    [mcpClient, completionsSupported, makeRequest]
+  );
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -401,5 +453,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     getPrompt,
     callTool,
     makeRequest,
+    handleCompletion,
+    completionsSupported,
   };
 }

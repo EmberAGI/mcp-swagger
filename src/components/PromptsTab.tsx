@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,20 +10,45 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Play, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useCompletionState, PromptReference } from "@/lib/hooks/useCompletionState";
+import { Combobox } from "@/components/ui/combobox";
 
 interface PromptsTabProps {
     prompts: Prompt[];
     onGetPrompt: (name: string, args?: Record<string, string>) => Promise<any>;
     isConnected: boolean;
+    handleCompletion?: (
+        ref: PromptReference,
+        argName: string,
+        value: string,
+        context?: Record<string, string>,
+        signal?: AbortSignal
+    ) => Promise<string[]>;
+    completionsSupported?: boolean;
 }
 
-export function PromptsTab({ prompts, onGetPrompt, isConnected }: PromptsTabProps) {
+export function PromptsTab({
+    prompts,
+    onGetPrompt,
+    isConnected,
+    handleCompletion,
+    completionsSupported = true
+}: PromptsTabProps) {
     const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
     const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
     const [promptArguments, setPromptArguments] = useState<Record<string, string>>({});
     const [promptResult, setPromptResult] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<string>("overview");
+
+    const { completions, clearCompletions, requestCompletions } = useCompletionState(
+        handleCompletion || (async () => []),
+        completionsSupported && !!handleCompletion
+    );
+
+    useEffect(() => {
+        clearCompletions();
+    }, [clearCompletions, selectedPrompt]);
 
     const toggleExpanded = (promptName: string) => {
         const newExpanded = new Set(expandedPrompts);
@@ -35,11 +60,24 @@ export function PromptsTab({ prompts, onGetPrompt, isConnected }: PromptsTabProp
         setExpandedPrompts(newExpanded);
     };
 
-    const handleArgumentChange = (argName: string, value: string) => {
+    const handleArgumentChange = async (argName: string, value: string) => {
         setPromptArguments(prev => ({
             ...prev,
             [argName]: value
         }));
+
+        // Request completions if supported
+        if (selectedPrompt && handleCompletion && completionsSupported) {
+            requestCompletions(
+                {
+                    type: "ref/prompt",
+                    name: selectedPrompt.name,
+                },
+                argName,
+                value,
+                promptArguments
+            );
+        }
     };
 
     const handleGetPrompt = async (prompt: Prompt) => {
@@ -204,12 +242,24 @@ export function PromptsTab({ prompts, onGetPrompt, isConnected }: PromptsTabProp
                                                     {arg.description && (
                                                         <p className="text-sm text-muted-foreground">{arg.description}</p>
                                                     )}
-                                                    <Input
-                                                        id={`arg-${arg.name}`}
-                                                        placeholder={`Enter ${arg.name}...`}
-                                                        value={promptArguments[arg.name] || ""}
-                                                        onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
-                                                    />
+                                                    {completions[arg.name] && completions[arg.name].length > 0 ? (
+                                                        <Combobox
+                                                            id={`arg-${arg.name}`}
+                                                            value={promptArguments[arg.name] || ""}
+                                                            onChange={(value) => handleArgumentChange(arg.name, value)}
+                                                            onInputChange={(value) => handleArgumentChange(arg.name, value)}
+                                                            options={completions[arg.name]}
+                                                            placeholder={`Enter ${arg.name}...`}
+                                                            emptyMessage="No suggestions available."
+                                                        />
+                                                    ) : (
+                                                        <Input
+                                                            id={`arg-${arg.name}`}
+                                                            placeholder={`Enter ${arg.name}...`}
+                                                            value={promptArguments[arg.name] || ""}
+                                                            onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
+                                                        />
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

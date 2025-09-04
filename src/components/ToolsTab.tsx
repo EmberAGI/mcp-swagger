@@ -5,9 +5,14 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Code, Play, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Code, Play, FileText, ChevronDown, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import JsonView from "./JsonView";
 
 interface ToolsTabProps {
     tools: Tool[];
@@ -19,6 +24,10 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
     const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
     const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
     const [activeTab, setActiveTab] = useState<string>("overview");
+    const [toolArguments, setToolArguments] = useState<Record<string, any>>({});
+    const [toolResult, setToolResult] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const toggleExpanded = (toolName: string) => {
         const newExpanded = new Set(expandedTools);
@@ -28,6 +37,76 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
             newExpanded.add(toolName);
         }
         setExpandedTools(newExpanded);
+    };
+
+    const handleArgumentChange = (argName: string, value: string) => {
+        setToolArguments(prev => ({
+            ...prev,
+            [argName]: value
+        }));
+    };
+
+    const handleExecuteTool = async () => {
+        if (!selectedTool) return;
+
+        setLoading(true);
+        setError(null);
+        setToolResult(null);
+
+        try {
+            // Parse the arguments based on their types
+            const parsedArguments: Record<string, any> = {};
+            const schema = parseJsonSchema(selectedTool.inputSchema);
+
+            for (const param of schema) {
+                const value = toolArguments[param.name];
+                if (value === undefined || value === '') continue;
+
+                try {
+                    if (param.type === 'boolean') {
+                        parsedArguments[param.name] = value === 'true';
+                    } else if (param.type === 'number' || param.type === 'integer') {
+                        parsedArguments[param.name] = Number(value);
+                    } else if (param.type === 'object' || param.type === 'array') {
+                        parsedArguments[param.name] = JSON.parse(value);
+                    } else {
+                        parsedArguments[param.name] = value;
+                    }
+                } catch (e) {
+                    throw new Error(`Invalid ${param.type} value for ${param.name}: ${e instanceof Error ? e.message : 'Invalid format'}`);
+                }
+            }
+
+            const result = await onCallTool(selectedTool.name, parsedArguments);
+            setToolResult(result);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred while executing the tool');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const parseJsonSchema = (schema: any): any[] => {
+        if (!schema || typeof schema !== 'object') return [];
+
+        // Handle different schema formats
+        if (schema.type === 'object' && schema.properties) {
+            return Object.entries(schema.properties).map(([name, prop]: [string, any]) => ({
+                name,
+                type: prop.type || 'string',
+                description: prop.description,
+                required: schema.required?.includes(name) || false,
+                enum: prop.enum,
+                default: prop.default
+            }));
+        }
+
+        // If it's a direct properties object
+        if (schema.properties) {
+            return parseJsonSchema({ type: 'object', ...schema });
+        }
+
+        return [];
     };
 
     const renderToolSchema = (schema: any) => {
@@ -138,6 +217,9 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setSelectedTool(tool);
+                                                        setToolArguments({});
+                                                        setToolResult(null);
+                                                        setError(null);
                                                         setActiveTab("test");
                                                     }}
                                                     disabled={!isConnected}
@@ -178,29 +260,118 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
             </div>
 
             {selectedTool ? (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>{selectedTool.name}</CardTitle>
-                        {selectedTool.description && (
-                            <CardDescription>{selectedTool.description}</CardDescription>
-                        )}
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            <div>
-                                <h5 className="font-medium mb-2">Input Schema</h5>
-                                {renderToolSchema(selectedTool.inputSchema)}
-                            </div>
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>{selectedTool.name}</CardTitle>
+                            {selectedTool.description && (
+                                <CardDescription>{selectedTool.description}</CardDescription>
+                            )}
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {selectedTool.inputSchema && (
+                                    <div>
+                                        <h5 className="font-medium mb-3">Parameters</h5>
+                                        <div className="space-y-3">
+                                            {parseJsonSchema(selectedTool.inputSchema).map((param, index) => (
+                                                <div key={index} className="space-y-2">
+                                                    <Label htmlFor={`param-${param.name}`} className="flex items-center gap-2">
+                                                        {param.name}
+                                                        {param.required && (
+                                                            <Badge variant="destructive" className="text-xs">required</Badge>
+                                                        )}
+                                                    </Label>
+                                                    {param.description && (
+                                                        <p className="text-sm text-muted-foreground">{param.description}</p>
+                                                    )}
+                                                    {param.type === 'string' && param.enum ? (
+                                                        <select
+                                                            id={`param-${param.name}`}
+                                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                            value={toolArguments[param.name] || ''}
+                                                            onChange={(e) => handleArgumentChange(param.name, e.target.value)}
+                                                        >
+                                                            <option value="">Select {param.name}...</option>
+                                                            {param.enum.map((option: string) => (
+                                                                <option key={option} value={option}>
+                                                                    {option}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    ) : param.type === 'boolean' ? (
+                                                        <div className="flex items-center space-x-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                id={`param-${param.name}`}
+                                                                checked={toolArguments[param.name] || false}
+                                                                onChange={(e) => handleArgumentChange(param.name, e.target.checked ? 'true' : 'false')}
+                                                                className="h-4 w-4 rounded border-gray-300"
+                                                            />
+                                                        </div>
+                                                    ) : param.type === 'object' || param.type === 'array' ? (
+                                                        <Textarea
+                                                            id={`param-${param.name}`}
+                                                            placeholder={`Enter JSON for ${param.name}...`}
+                                                            value={toolArguments[param.name] || ''}
+                                                            onChange={(e) => handleArgumentChange(param.name, e.target.value)}
+                                                            className="min-h-[100px] font-mono text-sm"
+                                                        />
+                                                    ) : (
+                                                        <Input
+                                                            id={`param-${param.name}`}
+                                                            type={param.type === 'number' || param.type === 'integer' ? 'number' : 'text'}
+                                                            placeholder={`Enter ${param.name}...`}
+                                                            value={toolArguments[param.name] || ''}
+                                                            onChange={(e) => handleArgumentChange(param.name, e.target.value)}
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
-                            <div className="pt-4 border-t">
-                                <Button disabled={!isConnected}>
-                                    <Play className="h-4 w-4 mr-2" />
-                                    Execute Tool
-                                </Button>
+                                <div className="pt-4 border-t">
+                                    <Button
+                                        onClick={handleExecuteTool}
+                                        disabled={!isConnected || loading}
+                                    >
+                                        {loading ? (
+                                            <>Loading...</>
+                                        ) : (
+                                            <>
+                                                <Play className="h-4 w-4 mr-2" />
+                                                Execute Tool
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+
+                    {error && (
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    {toolResult && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                    Result
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <JsonView data={toolResult} />
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             ) : (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-8">
