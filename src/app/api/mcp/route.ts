@@ -199,6 +199,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           console.log(
             `[MCP API] Session ${sessionId} found in KV storage, recreating transports...`
           );
+          console.log(`[MCP API] Stored session data:`, sessionData);
           // Use the stored URL and transport type
           url = sessionData.url;
           transportType = sessionData.transportType;
@@ -206,6 +207,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           console.log(
             `[MCP API] Session ${sessionId} not found in KV storage, creating new session...`
           );
+          if (sessionData) {
+            console.log(`[MCP API] Found inactive session:`, sessionData);
+          }
         }
 
         if (!url) {
@@ -227,15 +231,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           headers["Authorization"] = authHeader;
         }
 
-        // Create server transport
+        // Create server transport and establish connection
         let serverTransport: Transport;
         try {
           serverTransport = await createTransport(url, transportType, headers);
           console.log(
             "[MCP API] Created server transport for session recreation"
           );
+
+          // Test the connection by attempting to start it
+          if (
+            "start" in serverTransport &&
+            typeof serverTransport.start === "function"
+          ) {
+            await serverTransport.start();
+            console.log("[MCP API] Server transport connection established");
+          }
         } catch (error: any) {
-          console.error("[MCP API] Failed to create server transport:", error);
+          console.error(
+            "[MCP API] Failed to create/connect server transport:",
+            error
+          );
           return NextResponse.json(
             {
               error: "Failed to connect to MCP server",
@@ -262,6 +278,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
             console.log(
               `[MCP API] Session recreated and stored: ${newSessionId}`
+            );
+            console.log(
+              `[MCP API] Recreated session with URL: ${url}, transport: ${transportType}`
             );
           },
         });
