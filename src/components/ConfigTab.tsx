@@ -418,7 +418,7 @@ export function ConfigTab({ onConfigUpdate }: ConfigTabProps) {
                 <TabsContent value="about" className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>About MCP Swagger</CardTitle>
+                            <CardTitle>About MCP Explorer</CardTitle>
                             <CardDescription>Documentation and testing tool for Model Context Protocol servers</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">

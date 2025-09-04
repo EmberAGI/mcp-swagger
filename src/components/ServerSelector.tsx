@@ -28,13 +28,13 @@ export function ServerSelector({
     onDisconnect,
     onConfigureServers,
 }: ServerSelectorProps) {
-    const [selectedServerId, setSelectedServerId] = useState<string>("");
+    const serverConfig = loadServerConfig();
+    const [selectedServerId, setSelectedServerId] = useState<string>(serverConfig.defaultServer || "emberai");
     const [customUrl, setCustomUrl] = useState<string>("https://api.emberai.xyz/mcp");
     const [connectionMode, setConnectionMode] = useState<"preset" | "custom">("preset");
     const [transportType, setTransportType] = useState<TransportType>("streamable-http");
     const [sessionId, setSessionId] = useState<string>("");
     const [availableSessionId, setAvailableSessionId] = useState<string>("");
-    const serverConfig = loadServerConfig();
 
     const selectedServer = selectedServerId ? serverConfig.servers[selectedServerId] : null;
     const isConnected = connectionState.status === "connected";

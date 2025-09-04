@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EmberAi MCP Swagger",
+  title: "EmberAi MCP Explorer",
   description: "Model Context Protocol API Documentation & Testing Tool by EmberAi",
   icons: {
     icon: "/Logo (1).svg",

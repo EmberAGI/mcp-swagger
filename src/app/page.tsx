@@ -231,7 +231,7 @@ export default function Home() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <img src="/name.svg" alt="EmberAi" style={{ height: '24px' }} />
-                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#FD6731', marginLeft: '0.5rem' }}>MCP Swagger</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#FD6731', marginLeft: '0.5rem' }}>MCP Explorer</span>
                 </div>
                 <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.7)', marginTop: '0.25rem' }}>
                   Model Context Protocol API Documentation & Testing Tool
