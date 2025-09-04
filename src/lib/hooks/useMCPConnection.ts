@@ -140,11 +140,6 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           }
         );
 
-        // Use proxy for CORS handling
-        const proxyUrl = `/api/mcp?url=${encodeURIComponent(
-          server.url || ""
-        )}&transportType=${server.transport}`;
-
         // Get or create session ID from localStorage
         let sessionId = localStorage.getItem(`mcp-session-${server.url}`);
         if (!sessionId) {
@@ -155,21 +150,23 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           console.log(`[MCP] Using existing session ID: ${sessionId}`);
         }
 
+        // Use proxy for CORS handling - construct full proxy URL for fetch
+        const proxyUrl = `${window.location.origin}/api/mcp?url=${encodeURIComponent(
+          server.url || ""
+        )}&transportType=${server.transport}`;
+
         const transport: any =
           server.transport === "streamable-http" && server.url
-            ? new StreamableHTTPClientTransport(
-                new URL(proxyUrl, window.location.origin),
-                {
-                  requestInit: {
-                    headers: {
-                      "User-Agent": "MCP-Swagger/1.0",
-                      "Content-Type": "application/json",
-                      Accept: "text/event-stream, application/json",
-                      "mcp-session-id": sessionId,
-                    },
+            ? new StreamableHTTPClientTransport(new URL(proxyUrl), {
+                requestInit: {
+                  headers: {
+                    "User-Agent": "MCP-Swagger/1.0",
+                    "Content-Type": "application/json",
+                    Accept: "text/event-stream, application/json",
+                    "mcp-session-id": sessionId,
                   },
-                }
-              )
+                },
+              })
             : null;
 
         if (!transport) {
@@ -178,9 +175,9 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           );
         }
 
-        console.log("[MCP] Connecting via proxy:", proxyUrl);
+        console.log("[MCP] Connecting via proxy to:", proxyUrl);
         console.log("[MCP] Transport type:", server.transport);
-        console.log("[MCP] Target URL:", server.url);
+        console.log("[MCP] Target MCP server:", server.url);
 
         console.log("[MCP] Transport created");
 
