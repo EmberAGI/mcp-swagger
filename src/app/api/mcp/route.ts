@@ -236,17 +236,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         try {
           serverTransport = await createTransport(url, transportType, headers);
           console.log(
-            "[MCP API] Created server transport for session recreation"
+            "[MCP API] Created and connected server transport for session recreation"
           );
-
-          // Test the connection by attempting to start it
-          if (
-            "start" in serverTransport &&
-            typeof serverTransport.start === "function"
-          ) {
-            await serverTransport.start();
-            console.log("[MCP API] Server transport connection established");
-          }
         } catch (error: any) {
           console.error(
             "[MCP API] Failed to create/connect server transport:",
