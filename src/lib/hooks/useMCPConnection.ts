@@ -69,6 +69,15 @@ export function useMCPConnection(): UseMCPConnectionReturn {
   const [completionsSupported, setCompletionsSupported] = useState(true);
   const isConnectingRef = useRef(false);
   const isUnmountingRef = useRef(false);
+  const mcpClientRef = useRef<Client | null>(null);
+  useEffect(() => {
+    mcpClientRef.current = mcpClient;
+  }, [mcpClient]);
+  // Ensure unmount flag is clear on mount
+  useEffect(() => {
+    isUnmountingRef.current = false;
+  }, []);
+  const ignoreUnmountGuardRef = useRef(false);
 
   const disconnect = useCallback(async () => {
     console.log("[MCP] Disconnecting...");
@@ -130,8 +139,8 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         return;
       }
 
-      // Don't connect if we're unmounting
-      if (isUnmountingRef.current) {
+      // Don't connect if we're unmounting (unless explicitly ignored for a safe internal retry)
+      if (isUnmountingRef.current && !ignoreUnmountGuardRef.current) {
         console.log("[MCP] Component is unmounting, skipping connection...");
         return;
       }
@@ -166,15 +175,10 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           server.url || ""
         )}&transportType=${server.transport}`;
 
-        // Get or create session ID from localStorage
-        let sessionId = localStorage.getItem(`mcp-session-${server.url}`);
-        if (!sessionId) {
-          sessionId = crypto.randomUUID();
-          localStorage.setItem(`mcp-session-${server.url}`, sessionId);
-          console.log(`[MCP] Generated new session ID: ${sessionId}`);
-        } else {
-          console.log(`[MCP] Using existing session ID: ${sessionId}`);
-        }
+        // Always create a fresh session ID for a clean initialize
+        let sessionId = crypto.randomUUID();
+        localStorage.setItem(`mcp-session-${server.url}`, sessionId);
+        console.log(`[MCP] Generated new session ID: ${sessionId}`);
 
         const transport: any =
           server.transport === "streamable-http" && server.url
@@ -334,11 +338,16 @@ export function useMCPConnection(): UseMCPConnectionReturn {
             // Brief delay to ensure proxy cleanup
             await new Promise((r) => setTimeout(r, 50));
 
-            // Retry once
+            // Retry once (temporarily ignore unmount guard for this call)
             console.log(
               "[MCP] Retrying connection after already-initialized error..."
             );
-            await connect(server);
+            ignoreUnmountGuardRef.current = true;
+            try {
+              await connect(server);
+            } finally {
+              ignoreUnmountGuardRef.current = false;
+            }
             return;
           } catch (retryError) {
             console.error(
@@ -520,17 +529,20 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     [mcpClient, completionsSupported, makeRequest]
   );
 
-  // Cleanup on unmount
+  // Cleanup on unmount only
   useEffect(() => {
     return () => {
       isUnmountingRef.current = true;
-      // Only disconnect if we're actually unmounting, not during re-renders
-      if (mcpClient) {
+      if (mcpClientRef.current) {
         console.log("[MCP] Component unmounting, disconnecting...");
-        disconnect();
+        void (async () => {
+          try {
+            await mcpClientRef.current?.close();
+          } catch {}
+        })();
       }
     };
-  }, [mcpClient, disconnect]);
+  }, []);
 
   return {
     connectionState,
