@@ -5,14 +5,15 @@ import { ServerSelector } from "@/components/ServerSelector";
 import { ToolsTab } from "@/components/ToolsTab";
 import { ResourcesTab } from "@/components/ResourcesTab";
 import { PromptsTab } from "@/components/PromptsTab";
-import { PlaygroundTab } from "@/components/PlaygroundTab";
 import { ConfigTab } from "@/components/ConfigTab";
-import { AuthTab } from "@/components/AuthTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Code, Database, MessageSquare, Settings, Activity, Lock, ChevronDown } from "lucide-react";
+import { BookOpen, Code, Database, MessageSquare, Settings, Activity, Lock, ChevronDown, Send, History } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMCPConnection } from "@/lib/hooks/useMCPConnection";
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
@@ -22,6 +23,9 @@ import Image from "next/image";
 export default function Home() {
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [customRequest, setCustomRequest] = useState("{\n  \"method\": \"\",\n  \"params\": {}\n}");
+  const [requestHistory, setRequestHistory] = useState<Array<{ id: string; timestamp: Date; request: any; response: any; error?: string }>>([]);
+  const [isSending, setIsSending] = useState(false);
 
   const {
     connectionState,
@@ -65,6 +69,30 @@ export default function Home() {
   const handleConnect = async (server: MCPServer) => {
     await connect(server);
     // The lists are now fetched automatically in the connect function
+  };
+
+  const addToHistory = (request: any, response: any, error?: string) => {
+    const entry = { id: Date.now().toString(), timestamp: new Date(), request, response, error };
+    setRequestHistory(prev => [entry, ...prev].slice(0, 50));
+  };
+
+  const handleCustomRequest = async () => {
+    setIsSending(true);
+    try {
+      const request = JSON.parse(customRequest);
+      const response = await makeRequest(request, {} as any);
+      addToHistory(request, response);
+    } catch (error) {
+      let request;
+      try {
+        request = JSON.parse(customRequest);
+      } catch {
+        request = { error: "Invalid JSON" };
+      }
+      addToHistory(request, null, error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const renderOverview = () => {
@@ -432,13 +460,13 @@ export default function Home() {
               <MessageSquare className="w-4 h-4 mr-2" />
               Prompts
             </TabsTrigger>
-            <TabsTrigger value="auth">
+            <TabsTrigger value="auth" disabled>
               <Lock className="w-4 h-4 mr-2" />
               Auth
             </TabsTrigger>
             <TabsTrigger value="playground">
               <Activity className="w-4 h-4 mr-2" />
-              Playground
+              Request
             </TabsTrigger>
             <TabsTrigger value="config">
               <Settings className="w-4 h-4 mr-2" />
@@ -477,21 +505,85 @@ export default function Home() {
             />
           </TabsContent>
 
-          <TabsContent value="auth" className="mt-6">
-            <AuthTab connectionState={connectionState} />
-          </TabsContent>
+
 
           <TabsContent value="playground" className="mt-6">
-            <PlaygroundTab
-              tools={connectionState.tools}
-              resources={connectionState.resources}
-              prompts={connectionState.prompts}
-              onCallTool={callTool}
-              onReadResource={readResource}
-              onGetPrompt={getPrompt}
-              onMakeRequest={makeRequest}
-              isConnected={connectionState.status === "connected"}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Custom Request</CardTitle>
+                    <CardDescription>Send raw MCP requests for advanced testing</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="custom-request">JSON Request</Label>
+                      <Textarea
+                        id="custom-request"
+                        rows={12}
+                        className="font-mono text-sm"
+                        value={customRequest}
+                        onChange={(e) => setCustomRequest(e.target.value)}
+                        placeholder="Enter your MCP request as JSON..."
+                      />
+                    </div>
+                    <Button
+                      onClick={handleCustomRequest}
+                      disabled={connectionState.status !== "connected" || isSending}
+                      className="w-full"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      {isSending ? "Sending..." : "Send Request"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+              <div>
+                <Card className="h-fit">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <History className="w-4 h-4" />
+                      Request History
+                    </CardTitle>
+                    <CardDescription>Recent requests and responses</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+                    {requestHistory.length === 0 ? (
+                      <p className="text-muted-foreground text-sm text-center py-4">
+                        No requests yet. Start testing to see history.
+                      </p>
+                    ) : (
+                      requestHistory.map(item => (
+                        <div key={item.id} className="border rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Badge variant={item.error ? "destructive" : "success"}>
+                              custom
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {item.timestamp.toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div className="text-sm">
+                            <p className="font-medium">Request:</p>
+                            <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                              {JSON.stringify(item.request, null, 2)}
+                            </pre>
+                          </div>
+                          <div className="text-sm">
+                            <p className="font-medium">
+                              {item.error ? "Error:" : "Response:"}
+                            </p>
+                            <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                              {item.error || JSON.stringify(item.response, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="config" className="mt-6">

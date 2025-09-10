@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { MessageSquare, Play, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useCompletionState, PromptReference } from "@/lib/hooks/useCompletionState";
@@ -34,12 +33,12 @@ export function PromptsTab({
     handleCompletion,
     completionsSupported = true
 }: PromptsTabProps) {
-    const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
     const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
-    const [promptArguments, setPromptArguments] = useState<Record<string, string>>({});
-    const [promptResult, setPromptResult] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<string>("overview");
+    const [argsByPrompt, setArgsByPrompt] = useState<Record<string, Record<string, string>>>({});
+    const [resultByPrompt, setResultByPrompt] = useState<Record<string, any>>({});
+    const [loadingByPrompt, setLoadingByPrompt] = useState<Record<string, boolean>>({});
+    const [errorByPrompt, setErrorByPrompt] = useState<Record<string, string | null>>({});
+    const [showDocs, setShowDocs] = useState<boolean>(false);
 
     const { completions, clearCompletions, requestCompletions } = useCompletionState(
         handleCompletion ? (ref: any, argName: string, value: string, context?: Record<string, string>, signal?: AbortSignal) =>
@@ -47,9 +46,14 @@ export function PromptsTab({
         completionsSupported && !!handleCompletion
     );
 
+    // Auto-expand first prompt to avoid blank state; only once
+    const hasAutoExpandedRef = useRef(false);
     useEffect(() => {
-        clearCompletions();
-    }, [clearCompletions, selectedPrompt]);
+        if (!showDocs && prompts.length > 0 && !hasAutoExpandedRef.current) {
+            setExpandedPrompts(new Set([prompts[0].name]));
+            hasAutoExpandedRef.current = true;
+        }
+    }, [prompts, showDocs]);
 
     const toggleExpanded = (promptName: string) => {
         const newExpanded = new Set(expandedPrompts);
@@ -61,37 +65,38 @@ export function PromptsTab({
         setExpandedPrompts(newExpanded);
     };
 
-    const handleArgumentChange = async (argName: string, value: string) => {
-        setPromptArguments(prev => ({
+    const handleArgumentChange = async (promptName: string, argName: string, value: string) => {
+        setArgsByPrompt(prev => ({
             ...prev,
-            [argName]: value
+            [promptName]: { ...(prev[promptName] || {}), [argName]: value }
         }));
 
         // Request completions if supported
-        if (selectedPrompt && handleCompletion && completionsSupported) {
+        if (handleCompletion && completionsSupported) {
             requestCompletions(
                 {
                     type: "ref/prompt",
-                    name: selectedPrompt.name,
+                    name: promptName,
                 },
                 argName,
                 value,
-                promptArguments
+                argsByPrompt[promptName] || {}
             );
         }
     };
 
     const handleGetPrompt = async (prompt: Prompt) => {
-        setLoading(true);
+        const name = prompt.name;
+        setLoadingByPrompt(prev => ({ ...prev, [name]: true }));
+        setErrorByPrompt(prev => ({ ...prev, [name]: null }));
         try {
-            const result = await onGetPrompt(prompt.name, promptArguments);
-            setPromptResult(result);
-            setSelectedPrompt(prompt);
-            setActiveTab("test");
-        } catch (error) {
-            console.error("Error getting prompt:", error);
+            const result = await onGetPrompt(name, argsByPrompt[name] || {});
+            setResultByPrompt(prev => ({ ...prev, [name]: result }));
+            setShowDocs(false);
+        } catch (error: any) {
+            setErrorByPrompt(prev => ({ ...prev, [name]: error?.message || String(error) }));
         } finally {
-            setLoading(false);
+            setLoadingByPrompt(prev => ({ ...prev, [name]: false }));
         }
     };
 
@@ -119,7 +124,7 @@ export function PromptsTab({
         );
     };
 
-    const renderPromptCard = (prompt: Prompt) => (
+    const renderInteractivePromptCard = (prompt: Prompt) => (
         <Card key={prompt.name} className="overflow-hidden">
             <Collapsible
                 open={expandedPrompts.has(prompt.name)}
@@ -143,22 +148,7 @@ export function PromptsTab({
                                     )}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedPrompt(prompt);
-                                        setPromptArguments({});
-                                        setPromptResult(null);
-                                        setActiveTab("test");
-                                    }}
-                                    disabled={!isConnected}
-                                >
-                                    <Play className="h-4 w-4 mr-1" />
-                                    Test
-                                </Button>
-                            </div>
+                            <div className="flex items-center gap-2" />
                         </div>
                     </CardHeader>
                 </CollapsibleTrigger>
@@ -166,10 +156,74 @@ export function PromptsTab({
                 <CollapsibleContent>
                     <CardContent className="pt-0">
                         <div className="border-t pt-4 space-y-4">
-                            <div>
-                                <h5 className="font-medium mb-2">Arguments</h5>
-                                {renderArgumentsSchema(prompt.arguments || [])}
+                            {prompt.arguments && prompt.arguments.length > 0 && (
+                                <div>
+                                    <h5 className="font-medium mb-3">Arguments</h5>
+                                    <div className="space-y-3">
+                                        {prompt.arguments.map((arg, index) => (
+                                            <div key={index} className="space-y-2">
+                                                <Label htmlFor={`arg-${prompt.name}-${arg.name}`} className="flex items-center gap-2">
+                                                    {arg.name}
+                                                    {arg.required && (
+                                                        <Badge variant="destructive" className="text-xs">required</Badge>
+                                                    )}
+                                                </Label>
+                                                {arg.description && (
+                                                    <p className="text-sm text-muted-foreground">{arg.description}</p>
+                                                )}
+                                                {completions[arg.name] && completions[arg.name].length > 0 ? (
+                                                    <Combobox
+                                                        id={`arg-${prompt.name}-${arg.name}`}
+                                                        value={(argsByPrompt[prompt.name]?.[arg.name]) || ""}
+                                                        onChange={(value) => handleArgumentChange(prompt.name, arg.name, value)}
+                                                        onInputChange={(value) => handleArgumentChange(prompt.name, arg.name, value)}
+                                                        options={completions[arg.name]}
+                                                        placeholder={`Enter ${arg.name}...`}
+                                                        emptyMessage="No suggestions available."
+                                                    />
+                                                ) : (
+                                                    <Input
+                                                        id={`arg-${prompt.name}-${arg.name}`}
+                                                        placeholder={`Enter ${arg.name}...`}
+                                                        value={(argsByPrompt[prompt.name]?.[arg.name]) || ""}
+                                                        onChange={(e) => handleArgumentChange(prompt.name, arg.name, e.target.value)}
+                                                    />
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="pt-4 border-t">
+                                <Button
+                                    onClick={() => handleGetPrompt(prompt)}
+                                    disabled={!isConnected || !!loadingByPrompt[prompt.name]}
+                                >
+                                    <Play className="h-4 w-4 mr-2" />
+                                    {loadingByPrompt[prompt.name] ? "Getting Prompt..." : "Get Prompt"}
+                                </Button>
                             </div>
+
+                            {errorByPrompt[prompt.name] && (
+                                <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">
+                                    {errorByPrompt[prompt.name]}
+                                </div>
+                            )}
+
+                            {resultByPrompt[prompt.name] && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Prompt Result</CardTitle>
+                                        <CardDescription>Generated content from the prompt template</CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto max-h-96">
+                                            {JSON.stringify(resultByPrompt[prompt.name], null, 2)}
+                                        </pre>
+                                    </CardContent>
+                                </Card>
+                            )}
                         </div>
                     </CardContent>
                 </CollapsibleContent>
@@ -177,7 +231,7 @@ export function PromptsTab({
         </Card>
     );
 
-    const renderPromptsList = () => (
+    const renderDocsList = () => (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
@@ -202,135 +256,91 @@ export function PromptsTab({
                 </Card>
             ) : (
                 <div className="space-y-3">
-                    {prompts.map(renderPromptCard)}
+                    {prompts.map((prompt) => (
+                        <Card key={prompt.name} className="overflow-hidden">
+                            <Collapsible
+                                open={expandedPrompts.has(prompt.name)}
+                                onOpenChange={() => toggleExpanded(prompt.name)}
+                            >
+                                <CollapsibleTrigger asChild>
+                                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                {expandedPrompts.has(prompt.name) ? (
+                                                    <ChevronDown className="h-4 w-4" />
+                                                ) : (
+                                                    <ChevronRight className="h-4 w-4" />
+                                                )}
+                                                <div>
+                                                    <CardTitle className="text-lg">{prompt.name}</CardTitle>
+                                                    {prompt.description && (
+                                                        <CardDescription className="mt-1">
+                                                            {prompt.description}
+                                                        </CardDescription>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                </CollapsibleTrigger>
+
+                                <CollapsibleContent>
+                                    <CardContent className="pt-0">
+                                        <div className="border-t pt-4 space-y-4">
+                                            <div>
+                                                <h5 className="font-medium mb-2">Arguments</h5>
+                                                {renderArgumentsSchema(prompt.arguments || [])}
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </CollapsibleContent>
+                            </Collapsible>
+                        </Card>
+                    ))}
                 </div>
             )}
         </div>
     );
 
-    const renderPromptTesting = () => (
-        <div className="space-y-6">
-            <div>
-                <h3 className="text-lg font-semibold mb-2">Prompt Testing</h3>
-                <p className="text-sm text-muted-foreground">
-                    Test prompt templates with custom arguments and view results
-                </p>
+    const renderInteractiveList = () => (
+        <div className="space-y-4">
+            <div className="flex items-center justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShowDocs(true)}>Docs</Button>
             </div>
 
-            {selectedPrompt ? (
-                <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{selectedPrompt.name}</CardTitle>
-                            {selectedPrompt.description && (
-                                <CardDescription>{selectedPrompt.description}</CardDescription>
-                            )}
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                {selectedPrompt.arguments && selectedPrompt.arguments.length > 0 ? (
-                                    <div>
-                                        <h5 className="font-medium mb-3">Arguments</h5>
-                                        <div className="space-y-3">
-                                            {selectedPrompt.arguments.map((arg, index) => (
-                                                <div key={index} className="space-y-2">
-                                                    <Label htmlFor={`arg-${arg.name}`} className="flex items-center gap-2">
-                                                        {arg.name}
-                                                        {arg.required && (
-                                                            <Badge variant="destructive" className="text-xs">required</Badge>
-                                                        )}
-                                                    </Label>
-                                                    {arg.description && (
-                                                        <p className="text-sm text-muted-foreground">{arg.description}</p>
-                                                    )}
-                                                    {completions[arg.name] && completions[arg.name].length > 0 ? (
-                                                        <Combobox
-                                                            id={`arg-${arg.name}`}
-                                                            value={promptArguments[arg.name] || ""}
-                                                            onChange={(value) => handleArgumentChange(arg.name, value)}
-                                                            onInputChange={(value) => handleArgumentChange(arg.name, value)}
-                                                            options={completions[arg.name]}
-                                                            placeholder={`Enter ${arg.name}...`}
-                                                            emptyMessage="No suggestions available."
-                                                        />
-                                                    ) : (
-                                                        <Input
-                                                            id={`arg-${arg.name}`}
-                                                            placeholder={`Enter ${arg.name}...`}
-                                                            value={promptArguments[arg.name] || ""}
-                                                            onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
-                                                        />
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <p className="text-muted-foreground">This prompt requires no arguments.</p>
-                                )}
-
-                                <div className="pt-4 border-t">
-                                    <Button
-                                        onClick={() => handleGetPrompt(selectedPrompt)}
-                                        disabled={!isConnected || loading}
-                                    >
-                                        <Play className="h-4 w-4 mr-2" />
-                                        {loading ? "Getting Prompt..." : "Get Prompt"}
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {promptResult && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Prompt Result</CardTitle>
-                                <CardDescription>Generated content from the prompt template</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto max-h-96">
-                                    {JSON.stringify(promptResult, null, 2)}
-                                </pre>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            ) : (
+            {prompts.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-8">
-                        <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h4 className="text-lg font-medium mb-2">Select a Prompt</h4>
+                        <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h4 className="text-lg font-medium mb-2">No Prompts Available</h4>
                         <p className="text-muted-foreground text-center max-w-md">
-                            Choose a prompt from the overview tab to test its functionality
+                            {isConnected
+                                ? "This server doesn't provide any prompts, or prompts are not supported."
+                                : "Connect to an MCP server to view available prompts."}
                         </p>
                     </CardContent>
                 </Card>
+            ) : (
+                <div className="space-y-3">
+                    {prompts.map(renderInteractivePromptCard)}
+                </div>
             )}
         </div>
     );
 
     return (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="overview">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Overview
-                </TabsTrigger>
-                <TabsTrigger value="test">
-                    <Play className="w-4 h-4 mr-2" />
-                    Test Prompt
-                </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="mt-6">
-                {renderPromptsList()}
-            </TabsContent>
-
-            <TabsContent value="test" className="mt-6">
-                {renderPromptTesting()}
-            </TabsContent>
-        </Tabs>
+        <div className="w-full">
+            {showDocs ? (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setShowDocs(false)}>Back to Interactive</Button>
+                    </div>
+                    {renderDocsList()}
+                </div>
+            ) : (
+                renderInteractiveList()
+            )}
+        </div>
     );
 }
 

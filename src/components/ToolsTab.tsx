@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Code, Play, FileText, ChevronDown, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,13 +21,12 @@ interface ToolsTabProps {
 }
 
 export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
-    const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
     const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
-    const [activeTab, setActiveTab] = useState<string>("overview");
-    const [toolArguments, setToolArguments] = useState<Record<string, any>>({});
-    const [toolResult, setToolResult] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [showDocs, setShowDocs] = useState<boolean>(false);
+    const [toolArgumentsByName, setToolArgumentsByName] = useState<Record<string, Record<string, any>>>({});
+    const [toolResultsByName, setToolResultsByName] = useState<Record<string, any>>({});
+    const [toolErrorsByName, setToolErrorsByName] = useState<Record<string, string | null>>({});
+    const [loadingTools, setLoadingTools] = useState<Record<string, boolean>>({});
 
     const toggleExpanded = (toolName: string) => {
         const newExpanded = new Set(expandedTools);
@@ -39,36 +38,38 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
         setExpandedTools(newExpanded);
     };
 
-    const handleArgumentChange = (argName: string, value: string) => {
-        setToolArguments(prev => ({
+    const handleArgumentChange = (toolName: string, argName: string, value: string) => {
+        setToolArgumentsByName(prev => ({
             ...prev,
-            [argName]: value
+            [toolName]: {
+                ...(prev[toolName] || {}),
+                [argName]: value
+            }
         }));
     };
 
-    const handleExecuteTool = async () => {
-        if (!selectedTool) return;
-
-        setLoading(true);
-        setError(null);
-        setToolResult(null);
+    const handleExecuteTool = async (tool: Tool) => {
+        const toolName = tool.name;
+        setLoadingTools(prev => ({ ...prev, [toolName]: true }));
+        setToolErrorsByName(prev => ({ ...prev, [toolName]: null }));
+        setToolResultsByName(prev => ({ ...prev, [toolName]: null }));
 
         try {
-            // Parse the arguments based on their types
             const parsedArguments: Record<string, any> = {};
-            const schema = parseJsonSchema(selectedTool.inputSchema);
+            const schema = parseJsonSchema(tool.inputSchema);
+            const toolArgs = toolArgumentsByName[toolName] || {};
 
             for (const param of schema) {
-                const value = toolArguments[param.name];
+                const value = toolArgs[param.name];
                 if (value === undefined || value === '') continue;
 
                 try {
                     if (param.type === 'boolean') {
-                        parsedArguments[param.name] = value === 'true';
+                        parsedArguments[param.name] = value === 'true' || value === true;
                     } else if (param.type === 'number' || param.type === 'integer') {
                         parsedArguments[param.name] = Number(value);
                     } else if (param.type === 'object' || param.type === 'array') {
-                        parsedArguments[param.name] = JSON.parse(value);
+                        parsedArguments[param.name] = typeof value === 'string' ? JSON.parse(value) : value;
                     } else {
                         parsedArguments[param.name] = value;
                     }
@@ -77,14 +78,23 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                 }
             }
 
-            const result = await onCallTool(selectedTool.name, parsedArguments);
-            setToolResult(result);
+            const result = await onCallTool(toolName, parsedArguments);
+            setToolResultsByName(prev => ({ ...prev, [toolName]: result }));
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred while executing the tool');
+            setToolErrorsByName(prev => ({ ...prev, [toolName]: err instanceof Error ? err.message : 'An error occurred while executing the tool' }));
         } finally {
-            setLoading(false);
+            setLoadingTools(prev => ({ ...prev, [toolName]: false }));
         }
     };
+
+    // Ensure interactive view is not blank once on initial load: auto-expand the first tool
+    const hasAutoExpandedRef = useRef(false);
+    useEffect(() => {
+        if (!showDocs && tools.length > 0 && !hasAutoExpandedRef.current) {
+            setExpandedTools(new Set([tools[0].name]));
+            hasAutoExpandedRef.current = true;
+        }
+    }, [tools, showDocs]);
 
     const parseJsonSchema = (schema: any): any[] => {
         if (!schema || typeof schema !== 'object') return [];
@@ -162,7 +172,7 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
         );
     };
 
-    const renderToolsList = () => (
+    const renderDocsList = () => (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
@@ -191,7 +201,16 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                         <Card key={tool.name} className="overflow-hidden">
                             <Collapsible
                                 open={expandedTools.has(tool.name)}
-                                onOpenChange={() => toggleExpanded(tool.name)}
+                                onOpenChange={(open) => {
+                                    toggleExpanded(tool.name);
+                                    if (open) {
+                                        setSelectedTool(tool);
+                                        setToolArguments({});
+                                        setToolResult(null);
+                                        setError(null);
+                                        setShowDocs(false);
+                                    }
+                                }}
                             >
                                 <CollapsibleTrigger asChild>
                                     <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
@@ -211,23 +230,7 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedTool(tool);
-                                                        setToolArguments({});
-                                                        setToolResult(null);
-                                                        setError(null);
-                                                        setActiveTab("test");
-                                                    }}
-                                                    disabled={!isConnected}
-                                                >
-                                                    <Play className="h-4 w-4 mr-1" />
-                                                    Test
-                                                </Button>
-                                            </div>
+                                            <div className="flex items-center gap-2" />
                                         </div>
                                     </CardHeader>
                                 </CollapsibleTrigger>
@@ -236,7 +239,7 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                                     <CardContent className="pt-0">
                                         <div className="border-t pt-4 space-y-4">
                                             <div>
-                                                <h5 className="font-medium mb-2">Input Schema</h5>
+                                                <h5 className="font-medium mb-2">Parameters</h5>
                                                 {renderToolSchema(tool.inputSchema)}
                                             </div>
                                         </div>
@@ -250,162 +253,192 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
         </div>
     );
 
-    const renderToolTesting = () => (
-        <div className="space-y-6">
-            <div>
-                <h3 className="text-lg font-semibold mb-2">Tool Testing</h3>
-                <p className="text-sm text-muted-foreground">
-                    Test tool execution with custom parameters and view responses
-                </p>
+    const renderInteractiveList = () => (
+        <div className="space-y-4">
+            <div className="flex items-center justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShowDocs(true)}>Docs</Button>
             </div>
 
-            {selectedTool ? (
-                <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{selectedTool.name}</CardTitle>
-                            {selectedTool.description && (
-                                <CardDescription>{selectedTool.description}</CardDescription>
-                            )}
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                {selectedTool.inputSchema && (
-                                    <div>
-                                        <h5 className="font-medium mb-3">Parameters</h5>
-                                        <div className="space-y-3">
-                                            {parseJsonSchema(selectedTool.inputSchema).map((param, index) => (
-                                                <div key={index} className="space-y-2">
-                                                    <Label htmlFor={`param-${param.name}`} className="flex items-center gap-2">
-                                                        {param.name}
-                                                        {param.required && (
-                                                            <Badge variant="destructive" className="text-xs">required</Badge>
-                                                        )}
-                                                    </Label>
-                                                    {param.description && (
-                                                        <p className="text-sm text-muted-foreground">{param.description}</p>
-                                                    )}
-                                                    {param.type === 'string' && param.enum ? (
-                                                        <select
-                                                            id={`param-${param.name}`}
-                                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                                            value={toolArguments[param.name] || ''}
-                                                            onChange={(e) => handleArgumentChange(param.name, e.target.value)}
-                                                        >
-                                                            <option value="">Select {param.name}...</option>
-                                                            {param.enum.map((option: string) => (
-                                                                <option key={option} value={option}>
-                                                                    {option}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    ) : param.type === 'boolean' ? (
-                                                        <div className="flex items-center space-x-2">
-                                                            <input
-                                                                type="checkbox"
-                                                                id={`param-${param.name}`}
-                                                                checked={toolArguments[param.name] || false}
-                                                                onChange={(e) => handleArgumentChange(param.name, e.target.checked ? 'true' : 'false')}
-                                                                className="h-4 w-4 rounded border-gray-300"
-                                                            />
-                                                        </div>
-                                                    ) : param.type === 'object' || param.type === 'array' ? (
-                                                        <Textarea
-                                                            id={`param-${param.name}`}
-                                                            placeholder={`Enter JSON for ${param.name}...`}
-                                                            value={toolArguments[param.name] || ''}
-                                                            onChange={(e) => handleArgumentChange(param.name, e.target.value)}
-                                                            className="min-h-[100px] font-mono text-sm"
-                                                        />
-                                                    ) : (
-                                                        <Input
-                                                            id={`param-${param.name}`}
-                                                            type={param.type === 'number' || param.type === 'integer' ? 'number' : 'text'}
-                                                            placeholder={`Enter ${param.name}...`}
-                                                            value={toolArguments[param.name] || ''}
-                                                            onChange={(e) => handleArgumentChange(param.name, e.target.value)}
-                                                        />
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="pt-4 border-t">
-                                    <Button
-                                        onClick={handleExecuteTool}
-                                        disabled={!isConnected || loading}
-                                    >
-                                        {loading ? (
-                                            <>Loading...</>
-                                        ) : (
-                                            <>
-                                                <Play className="h-4 w-4 mr-2" />
-                                                Execute Tool
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {error && (
-                        <Alert variant="destructive">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>{error}</AlertDescription>
-                        </Alert>
-                    )}
-
-                    {toolResult && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                    Result
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <JsonView data={toolResult} />
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            ) : (
+            {tools.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-8">
-                        <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h4 className="text-lg font-medium mb-2">Select a Tool</h4>
+                        <Code className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h4 className="text-lg font-medium mb-2">No Tools Available</h4>
                         <p className="text-muted-foreground text-center max-w-md">
-                            Choose a tool from the overview tab to test its functionality
+                            {isConnected
+                                ? "This server doesn't provide any tools, or tools are not supported."
+                                : "Connect to an MCP server to view available tools."}
                         </p>
                     </CardContent>
                 </Card>
+            ) : (
+                <div className="space-y-3">
+                    {tools.map((tool) => {
+                        const toolName = tool.name;
+                        const toolArgs = toolArgumentsByName[toolName] || {};
+                        const isLoading = !!loadingTools[toolName];
+                        const error = toolErrorsByName[toolName];
+                        const result = toolResultsByName[toolName];
+
+                        return (
+                            <Card key={toolName} className="overflow-hidden">
+                                <Collapsible
+                                    open={expandedTools.has(toolName)}
+                                    onOpenChange={(open) => {
+                                        const next = new Set(expandedTools);
+                                        if (open) next.add(toolName); else next.delete(toolName);
+                                        setExpandedTools(next);
+                                    }}
+                                >
+                                    <CollapsibleTrigger asChild>
+                                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    {expandedTools.has(toolName) ? (
+                                                        <ChevronDown className="h-4 w-4" />
+                                                    ) : (
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    )}
+                                                    <div>
+                                                        <CardTitle className="text-lg">{toolName}</CardTitle>
+                                                        {tool.description && (
+                                                            <CardDescription className="mt-1">
+                                                                {tool.description}
+                                                            </CardDescription>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                    </CollapsibleTrigger>
+
+                                    <CollapsibleContent>
+                                        <CardContent className="pt-0">
+                                            <div className="border-t pt-4 space-y-4">
+                                                {tool.inputSchema && (
+                                                    <div>
+                                                        <h5 className="font-medium mb-3">Parameters</h5>
+                                                        <div className="space-y-3">
+                                                            {parseJsonSchema(tool.inputSchema).map((param, index) => (
+                                                                <div key={index} className="space-y-2">
+                                                                    <Label htmlFor={`param-${toolName}-${param.name}`} className="flex items-center gap-2">
+                                                                        {param.name}
+                                                                        {param.required && (
+                                                                            <Badge variant="destructive" className="text-xs">required</Badge>
+                                                                        )}
+                                                                        {param.type && <Badge variant="outline" className="text-xs">{param.type}</Badge>}
+                                                                    </Label>
+                                                                    {param.description && (
+                                                                        <p className="text-sm text-muted-foreground">{param.description}</p>
+                                                                    )}
+                                                                    {param.type === 'string' && param.enum ? (
+                                                                        <select
+                                                                            id={`param-${toolName}-${param.name}`}
+                                                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                                            value={toolArgs[param.name] || ''}
+                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value)}
+                                                                        >
+                                                                            <option value="">Select {param.name}...</option>
+                                                                            {param.enum.map((option: string) => (
+                                                                                <option key={option} value={option}>
+                                                                                    {option}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    ) : param.type === 'boolean' ? (
+                                                                        <div className="flex items-center space-x-2">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                id={`param-${toolName}-${param.name}`}
+                                                                                checked={toolArgs[param.name] || false}
+                                                                                onChange={(e) => handleArgumentChange(toolName, param.name, e.target.checked ? 'true' : 'false')}
+                                                                                className="h-4 w-4 rounded border-gray-300"
+                                                                            />
+                                                                        </div>
+                                                                    ) : param.type === 'object' || param.type === 'array' ? (
+                                                                        <Textarea
+                                                                            id={`param-${toolName}-${param.name}`}
+                                                                            placeholder={`Enter JSON for ${param.name}...`}
+                                                                            value={toolArgs[param.name] || ''}
+                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value)}
+                                                                            className="min-h-[100px] font-mono text-sm"
+                                                                        />
+                                                                    ) : (
+                                                                        <Input
+                                                                            id={`param-${toolName}-${param.name}`}
+                                                                            type={param.type === 'number' || param.type === 'integer' ? 'number' : 'text'}
+                                                                            placeholder={`Enter ${param.name}...`}
+                                                                            value={toolArgs[param.name] || ''}
+                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value)}
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="pt-4 border-t">
+                                                    <Button
+                                                        onClick={() => handleExecuteTool(tool)}
+                                                        disabled={!isConnected || isLoading}
+                                                    >
+                                                        {isLoading ? (
+                                                            <>Loading...</>
+                                                        ) : (
+                                                            <>
+                                                                <Play className="h-4 w-4 mr-2" />
+                                                                Execute Tool
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
+
+                                                {error && (
+                                                    <Alert variant="destructive">
+                                                        <AlertCircle className="h-4 w-4" />
+                                                        <AlertDescription>{error}</AlertDescription>
+                                                    </Alert>
+                                                )}
+
+                                                {result && (
+                                                    <Card>
+                                                        <CardHeader>
+                                                            <CardTitle className="flex items-center gap-2">
+                                                                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                                                Result
+                                                            </CardTitle>
+                                                        </CardHeader>
+                                                        <CardContent>
+                                                            <JsonView data={result} />
+                                                        </CardContent>
+                                                    </Card>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            </Card>
+                        );
+                    })}
+                </div>
             )}
         </div>
     );
 
     return (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="overview">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Overview
-                </TabsTrigger>
-                <TabsTrigger value="test">
-                    <Play className="w-4 h-4 mr-2" />
-                    Test Tool
-                </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="mt-6">
-                {renderToolsList()}
-            </TabsContent>
-
-            <TabsContent value="test" className="mt-6">
-                {renderToolTesting()}
-            </TabsContent>
-        </Tabs>
+        <div className="w-full">
+            {showDocs ? (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setShowDocs(false)}>Back to Interactive</Button>
+                    </div>
+                    {renderDocsList()}
+                </div>
+            ) : (
+                renderInteractiveList()
+            )}
+        </div>
     );
 }
+

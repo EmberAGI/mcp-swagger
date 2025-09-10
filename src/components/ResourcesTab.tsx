@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Resource, ResourceTemplate } from "@modelcontextprotocol/sdk/types.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database, FileText, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -22,12 +21,12 @@ export function ResourcesTab({
     onReadResource,
     isConnected
 }: ResourcesTabProps) {
-    const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
     const [expandedResources, setExpandedResources] = useState<Set<string>>(new Set());
     const [expandedTemplates, setExpandedTemplates] = useState<Set<string>>(new Set());
-    const [resourceContent, setResourceContent] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<string>("overview");
+    const [showDocs, setShowDocs] = useState<boolean>(false);
+    const [contentByUri, setContentByUri] = useState<Record<string, any>>({});
+    const [loadingByUri, setLoadingByUri] = useState<Record<string, boolean>>({});
+    const [errorByUri, setErrorByUri] = useState<Record<string, string | null>>({});
 
     const toggleExpandedResource = (uri: string) => {
         const newExpanded = new Set(expandedResources);
@@ -50,20 +49,30 @@ export function ResourcesTab({
     };
 
     const handleReadResource = async (resource: Resource) => {
-        setLoading(true);
+        const uri = resource.uri;
+        setLoadingByUri(prev => ({ ...prev, [uri]: true }));
+        setErrorByUri(prev => ({ ...prev, [uri]: null }));
         try {
-            const content = await onReadResource(resource.uri);
-            setResourceContent(content);
-            setSelectedResource(resource);
-            setActiveTab("reader");
-        } catch (error) {
-            console.error("Error reading resource:", error);
+            const content = await onReadResource(uri);
+            setContentByUri(prev => ({ ...prev, [uri]: content }));
+            setShowDocs(false);
+        } catch (error: any) {
+            setErrorByUri(prev => ({ ...prev, [uri]: error?.message || String(error) }));
         } finally {
-            setLoading(false);
+            setLoadingByUri(prev => ({ ...prev, [uri]: false }));
         }
     };
 
-    const renderResourceCard = (resource: Resource) => (
+    // Auto-expand the first resource only once to avoid a blank interactive view
+    const hasAutoExpandedRef = useRef(false);
+    useEffect(() => {
+        if (!showDocs && resources.length > 0 && !hasAutoExpandedRef.current) {
+            setExpandedResources(new Set([resources[0].uri]));
+            hasAutoExpandedRef.current = true;
+        }
+    }, [resources, showDocs]);
+
+    const renderInteractiveResourceCard = (resource: Resource) => (
         <Card key={resource.uri} className="overflow-hidden">
             <Collapsible
                 open={expandedResources.has(resource.uri)}
@@ -91,17 +100,6 @@ export function ResourcesTab({
                                 {resource.mimeType && (
                                     <Badge variant="outline">{resource.mimeType}</Badge>
                                 )}
-                                <Button
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleReadResource(resource);
-                                    }}
-                                    disabled={!isConnected || loading}
-                                >
-                                    <ExternalLink className="h-4 w-4 mr-1" />
-                                    Read
-                                </Button>
                             </div>
                         </div>
                     </CardHeader>
@@ -122,6 +120,32 @@ export function ResourcesTab({
                                     </div>
                                 )}
                             </div>
+
+                            <div className="pt-3">
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleReadResource(resource)}
+                                    disabled={!isConnected || !!loadingByUri[resource.uri]}
+                                >
+                                    <ExternalLink className="h-4 w-4 mr-1" />
+                                    {loadingByUri[resource.uri] ? "Reading..." : "Read"}
+                                </Button>
+                            </div>
+
+                            {errorByUri[resource.uri] && (
+                                <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">
+                                    {errorByUri[resource.uri]}
+                                </div>
+                            )}
+
+                            {contentByUri[resource.uri] && (
+                                <div>
+                                    <h5 className="font-medium mb-2">Content</h5>
+                                    <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto max-h-96">
+                                        {JSON.stringify(contentByUri[resource.uri], null, 2)}
+                                    </pre>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </CollapsibleContent>
@@ -180,7 +204,7 @@ export function ResourcesTab({
         </Card>
     );
 
-    const renderResourcesList = () => (
+    const renderDocsList = () => (
         <div className="space-y-6">
             <div>
                 <h3 className="text-lg font-semibold mb-2">Resources</h3>
@@ -202,7 +226,56 @@ export function ResourcesTab({
                     </Card>
                 ) : (
                     <div className="space-y-3">
-                        {resources.map(renderResourceCard)}
+                        {resources.map((r) => (
+                            <Card key={r.uri} className="overflow-hidden">
+                                <Collapsible
+                                    open={expandedResources.has(r.uri)}
+                                    onOpenChange={() => toggleExpandedResource(r.uri)}
+                                >
+                                    <CollapsibleTrigger asChild>
+                                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    {expandedResources.has(r.uri) ? (
+                                                        <ChevronDown className="h-4 w-4" />
+                                                    ) : (
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    )}
+                                                    <div className="flex-1">
+                                                        <CardTitle className="text-lg">{r.name || r.uri}</CardTitle>
+                                                        {r.description && (
+                                                            <CardDescription className="mt-1">
+                                                                {r.description}
+                                                            </CardDescription>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {r.mimeType && <Badge variant="outline">{r.mimeType}</Badge>}
+                                            </div>
+                                        </CardHeader>
+                                    </CollapsibleTrigger>
+
+                                    <CollapsibleContent>
+                                        <CardContent className="pt-0">
+                                            <div className="border-t pt-4 space-y-2">
+                                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                                    <div>
+                                                        <span className="font-medium text-muted-foreground">URI:</span>
+                                                        <p className="font-mono text-xs break-all">{r.uri}</p>
+                                                    </div>
+                                                    {r.mimeType && (
+                                                        <div>
+                                                            <span className="font-medium text-muted-foreground">MIME Type:</span>
+                                                            <p>{r.mimeType}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            </Card>
+                        ))}
                     </div>
                 )}
             </div>
@@ -221,85 +294,45 @@ export function ResourcesTab({
         </div>
     );
 
-    const renderResourceReader = () => (
-        <div className="space-y-6">
-            <div>
-                <h3 className="text-lg font-semibold mb-2">Resource Reader</h3>
-                <p className="text-sm text-muted-foreground">
-                    View and explore resource content
-                </p>
+    const renderInteractiveList = () => (
+        <div className="space-y-4">
+            <div className="flex items-center justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShowDocs(true)}>Docs</Button>
             </div>
 
-            {selectedResource ? (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <FileText className="h-5 w-5" />
-                            {selectedResource.name || selectedResource.uri}
-                        </CardTitle>
-                        <CardDescription>{selectedResource.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 text-sm border-b pb-4">
-                                <div>
-                                    <span className="font-medium text-muted-foreground">URI:</span>
-                                    <p className="font-mono text-xs break-all">{selectedResource.uri}</p>
-                                </div>
-                                {selectedResource.mimeType && (
-                                    <div>
-                                        <span className="font-medium text-muted-foreground">MIME Type:</span>
-                                        <p>{selectedResource.mimeType}</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {resourceContent && (
-                                <div>
-                                    <h5 className="font-medium mb-2">Content</h5>
-                                    <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto max-h-96">
-                                        {JSON.stringify(resourceContent, null, 2)}
-                                    </pre>
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-            ) : (
+            {resources.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-8">
-                        <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h4 className="text-lg font-medium mb-2">Select a Resource</h4>
+                        <Database className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h4 className="text-lg font-medium mb-2">No Resources Available</h4>
                         <p className="text-muted-foreground text-center max-w-md">
-                            Choose a resource from the overview tab to read its content
+                            {isConnected
+                                ? "This server doesn't provide any resources, or resources are not supported."
+                                : "Connect to an MCP server to view available resources."}
                         </p>
                     </CardContent>
                 </Card>
+            ) : (
+                <div className="space-y-3">
+                    {resources.map(renderInteractiveResourceCard)}
+                </div>
             )}
         </div>
     );
 
     return (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="overview">
-                    <Database className="w-4 h-4 mr-2" />
-                    Overview
-                </TabsTrigger>
-                <TabsTrigger value="reader">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Resource Reader
-                </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="mt-6">
-                {renderResourcesList()}
-            </TabsContent>
-
-            <TabsContent value="reader" className="mt-6">
-                {renderResourceReader()}
-            </TabsContent>
-        </Tabs>
+        <div className="w-full">
+            {showDocs ? (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setShowDocs(false)}>Back to Interactive</Button>
+                    </div>
+                    {renderDocsList()}
+                </div>
+            ) : (
+                renderInteractiveList()
+            )}
+        </div>
     );
 }
 

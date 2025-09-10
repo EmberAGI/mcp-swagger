@@ -293,6 +293,69 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const body = await request.text();
       const parsedBody = body ? JSON.parse(body) : undefined;
 
+      // If this is an initialize call on an already initialized/upstream session,
+      // recreate the upstream server transport to ensure a clean handshake.
+      if (parsedBody && parsedBody.method === "initialize") {
+        try {
+          const existingServerTransport = serverTransports.get(sessionId);
+          if (existingServerTransport) {
+            try {
+              await existingServerTransport.close();
+            } catch (e) {
+              console.warn(
+                "[MCP API] Error closing existing server transport:",
+                e
+              );
+            }
+            serverTransports.delete(sessionId);
+          }
+
+          if (!url) {
+            console.warn(
+              "[MCP API] Missing URL on initialize; proceeding without upstream reset"
+            );
+          } else {
+            // Extract headers to pass through
+            const headers: Record<string, string> = {
+              Accept: "text/event-stream, application/json",
+              "Content-Type": "application/json",
+            };
+            const authHeader = request.headers.get("authorization");
+            if (authHeader) {
+              headers["Authorization"] = authHeader;
+            }
+
+            const newServerTransport = await createTransport(
+              url,
+              transportType,
+              headers
+            );
+            serverTransports.set(sessionId, newServerTransport);
+
+            // Rewire proxy between existing webApp transport and new server transport
+            mcpProxy({
+              transportToClient: transport,
+              transportToServer: newServerTransport,
+            });
+            console.log(
+              "[MCP API] Upstream transport recreated for initialize"
+            );
+          }
+        } catch (recreateError: any) {
+          console.error(
+            "[MCP API] Failed to recreate upstream transport:",
+            recreateError
+          );
+          return NextResponse.json(
+            {
+              error: "Failed to reset upstream transport",
+              details: recreateError.message,
+            },
+            { status: 502 }
+          );
+        }
+      }
+
       // Create proper Express mocks
       const mockReq = createExpressMocks(request, body, parsedBody);
 

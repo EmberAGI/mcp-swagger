@@ -72,6 +72,11 @@ export function useMCPConnection(): UseMCPConnectionReturn {
 
   const disconnect = useCallback(async () => {
     console.log("[MCP] Disconnecting...");
+    const serverUrl = connectionState.server?.url;
+    const sessionKey = serverUrl ? `mcp-session-${serverUrl}` : undefined;
+    const sessionId = sessionKey ? localStorage.getItem(sessionKey) : undefined;
+
+    // Close client first
     if (mcpClient) {
       try {
         await mcpClient.close();
@@ -82,11 +87,25 @@ export function useMCPConnection(): UseMCPConnectionReturn {
       setMcpClient(null);
     }
 
-    // Clear session from localStorage
-    if (connectionState.server?.url) {
-      localStorage.removeItem(`mcp-session-${connectionState.server.url}`);
+    // Ask proxy to tear down the session on the server side
+    if (sessionId) {
+      try {
+        await fetch("/api/mcp", {
+          method: "DELETE",
+          headers: { "mcp-session-id": sessionId },
+        });
+        console.log(`[MCP] Proxy session ${sessionId} deleted`);
+      } catch (error) {
+        console.warn("[MCP] Failed to delete proxy session:", error);
+      }
     }
 
+    // Clear session from localStorage
+    if (sessionKey) {
+      localStorage.removeItem(sessionKey);
+    }
+
+    // Reset connection state
     setConnectionState({
       status: "disconnected",
       tools: [],
@@ -96,7 +115,9 @@ export function useMCPConnection(): UseMCPConnectionReturn {
       notifications: [],
     });
 
+    // Reset flags and features
     isConnectingRef.current = false;
+    setCompletionsSupported(true);
   }, [mcpClient, connectionState.server?.url]);
 
   const connect = useCallback(
@@ -117,8 +138,8 @@ export function useMCPConnection(): UseMCPConnectionReturn {
 
       isConnectingRef.current = true;
 
-      // Disconnect any existing connection only if there's an active client
-      if (mcpClient) {
+      // Disconnect any existing connection and clear prior session
+      if (mcpClient || connectionState.server?.url) {
         await disconnect();
       }
 
@@ -279,16 +300,58 @@ export function useMCPConnection(): UseMCPConnectionReturn {
 
         // Get detailed error information
         const errorDetails = getDetailedErrorInfo(error);
+        const basicErrorMessage = getErrorMessage(error);
         console.error("[MCP] Detailed error info:", errorDetails);
 
-        // Get the basic error message
-        const basicErrorMessage = getErrorMessage(error);
+        const looksLikeAlreadyInitialized =
+          /already\s+initialized/i.test(basicErrorMessage) ||
+          (/initialize/i.test(basicErrorMessage) &&
+            /already/i.test(basicErrorMessage));
+
+        // If server reports already initialized, reset proxy session + local session and retry once
+        if (looksLikeAlreadyInitialized && server.url) {
+          try {
+            const sessionKey = `mcp-session-${server.url}`;
+            const sessionId = localStorage.getItem(sessionKey);
+            if (sessionId) {
+              try {
+                await fetch("/api/mcp", {
+                  method: "DELETE",
+                  headers: { "mcp-session-id": sessionId },
+                });
+              } catch (e) {
+                console.warn(
+                  "[MCP] Failed to delete proxy session during retry:",
+                  e
+                );
+              }
+              localStorage.removeItem(sessionKey);
+            }
+
+            // Allow re-entry for retry
+            isConnectingRef.current = false;
+
+            // Brief delay to ensure proxy cleanup
+            await new Promise((r) => setTimeout(r, 50));
+
+            // Retry once
+            console.log(
+              "[MCP] Retrying connection after already-initialized error..."
+            );
+            await connect(server);
+            return;
+          } catch (retryError) {
+            console.error(
+              "[MCP] Retry after already-initialized failed:",
+              retryError
+            );
+          }
+        }
 
         // Categorize and enhance the error message
         const categorizedError = categorizeConnectionError(basicErrorMessage);
         const { userFriendlyMessage } = categorizedError;
 
-        // Fallback for truly undefined errors
         const finalErrorMessage =
           basicErrorMessage === "Unknown error occurred"
             ? "Connection failed: Unable to connect to the MCP server. Check the debug panel for more details."
@@ -310,7 +373,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         isConnectingRef.current = false;
       }
     },
-    [disconnect, mcpClient]
+    [disconnect, mcpClient, connectionState.server?.url]
   );
 
   const makeRequest = useCallback(
