@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ServerSelector } from "@/components/ServerSelector";
 import { ToolsTab } from "@/components/ToolsTab";
 import { ResourcesTab } from "@/components/ResourcesTab";
@@ -16,6 +16,7 @@ import { BookOpen, Code, Database, MessageSquare, Settings, Activity, Lock, Chev
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMCPConnection } from "@/lib/hooks/useMCPConnection";
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
+import { loadServerConfig } from "@/config/servers";
 import Image from "next/image";
 
 export default function Home() {
@@ -33,6 +34,33 @@ export default function Home() {
     handleCompletion,
     completionsSupported,
   } = useMCPConnection();
+
+  const serverConfig = useMemo(() => loadServerConfig(), []);
+  const hasAttemptedAutoConnectRef = useRef(false);
+
+  // Auto-connect to the default server when the homepage is fully loaded
+  useEffect(() => {
+    if (hasAttemptedAutoConnectRef.current) return;
+
+    const attemptAutoConnect = () => {
+      if (hasAttemptedAutoConnectRef.current) return;
+      if (connectionState.status === "disconnected" || connectionState.status === "error") {
+        const defaultServerId = serverConfig.defaultServer;
+        const defaultServer = defaultServerId ? serverConfig.servers[defaultServerId] : undefined;
+        if (defaultServer) {
+          hasAttemptedAutoConnectRef.current = true;
+          connect(defaultServer as MCPServer);
+        }
+      }
+    };
+
+    if (document.readyState === "complete") {
+      attemptAutoConnect();
+    } else {
+      window.addEventListener("load", attemptAutoConnect, { once: true });
+      return () => window.removeEventListener("load", attemptAutoConnect);
+    }
+  }, [connectionState.status, serverConfig, connect]);
 
   const handleConnect = async (server: MCPServer) => {
     await connect(server);
@@ -265,21 +293,100 @@ export default function Home() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 1rem' }}>
-        <Collapsible defaultOpen>
-          <CollapsibleTrigger style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            fontSize: '1.125rem',
-            fontWeight: '600',
-            color: '#fff',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            marginBottom: '1rem'
-          }}>
-            <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transition: 'transform 0.2s', color: '#FD6731' }} />
-            MCP Server Connection
+        <Collapsible defaultOpen={false}>
+          <CollapsibleTrigger asChild>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              gap: '0.5rem',
+              fontSize: '1.125rem',
+              fontWeight: '600',
+              color: '#fff',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginBottom: '1rem'
+            }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transition: 'transform 0.2s', color: '#FD6731' }} />
+                MCP Server Connection
+              </span>
+              <span
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {connectionState.status === "connected" && (
+                  <>
+                    <Badge variant="success">Connected</Badge>
+                    <button
+                      onClick={() => disconnect()}
+                      style={{
+                        padding: '0.375rem 0.75rem',
+                        backgroundColor: 'transparent',
+                        border: '1px solid #FD6731',
+                        borderRadius: '0.375rem',
+                        color: '#FD6731',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                )}
+                {connectionState.status === "connecting" && (
+                  <>
+                    <Badge variant="warning">Connecting...</Badge>
+                    <button
+                      onClick={() => disconnect()}
+                      style={{
+                        padding: '0.375rem 0.75rem',
+                        backgroundColor: 'transparent',
+                        border: '1px solid #FD6731',
+                        borderRadius: '0.375rem',
+                        color: '#FD6731',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+                {(connectionState.status === "disconnected" || connectionState.status === "error") && (
+                  <>
+                    <Badge variant={connectionState.status === "error" ? "destructive" : "outline"}>
+                      {connectionState.status === "error" ? "Error" : "Disconnected"}
+                    </Badge>
+                    <button
+                      onClick={() => {
+                        const defaultServerId = serverConfig.defaultServer;
+                        const defaultServer = defaultServerId ? serverConfig.servers[defaultServerId] : undefined;
+                        if (defaultServer) {
+                          handleConnect(defaultServer as MCPServer);
+                        }
+                      }}
+                      style={{
+                        padding: '0.375rem 0.75rem',
+                        backgroundColor: 'transparent',
+                        border: '1px solid #FD6731',
+                        borderRadius: '0.375rem',
+                        color: '#FD6731',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Connect
+                    </button>
+                  </>
+                )}
+              </span>
+            </div>
           </CollapsibleTrigger>
           <CollapsibleContent style={{ marginTop: '1rem' }}>
             <ServerSelector
