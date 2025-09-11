@@ -429,7 +429,7 @@ export default function Home() {
         <Tabs value={activeTab} onValueChange={setActiveTab} style={{ width: '100%' }}>
           <TabsList style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(6, 1fr)',
+            gridTemplateColumns: 'repeat(7, 1fr)',
             width: '100%',
             backgroundColor: 'rgba(255, 255, 255, 0.05)',
             borderRadius: '0.5rem',
