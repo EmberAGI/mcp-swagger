@@ -1,0 +1,28 @@
+version: 1.0
+runtime: docker
+build:
+  commands:
+    build:
+      - echo "Build phase - Docker handles the build process"
+run:
+  runtime-version: latest
+  command: npm run start -- -p 8080 -H 0.0.0.0
+  network:
+    port: 8080
+    env:
+      - name: NODE_ENV
+        value: production
+      - name: PORT
+        value: "8080"
+      - name: HOSTNAME
+        value: "0.0.0.0"
+      - name: NEXT_TELEMETRY_DISABLED
+        value: "1"
+  health-check:
+    protocol: http
+    path: /api/health
+    interval: 30
+    timeout: 10
+    start-period: 60
+    healthy-threshold: 2
+    unhealthy-threshold: 3

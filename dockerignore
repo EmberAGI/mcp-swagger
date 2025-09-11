@@ -4,6 +4,12 @@ out
 dist
 .git
 .gitignore
-Dockerfile
+.dockerignore
 docker-compose.yml
 *.log
+.env.local
+.env.*.local
+README.md
+*.md
+.vscode
+.idea

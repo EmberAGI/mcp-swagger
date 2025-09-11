@@ -11,10 +11,12 @@ const nextConfig: NextConfig = {
     contentDispositionType: "attachment",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  output: "standalone",
+  // Ensure server binds to all interfaces for container deployments
   experimental: {
-    outputFileTracingRoot: undefined,
+    serverComponentsExternalPackages: ["@modelcontextprotocol/sdk"],
   },
+  // Output configuration for production
+  output: "standalone",
 };
 
 export default nextConfig;

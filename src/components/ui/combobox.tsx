@@ -141,7 +141,7 @@ export function Combobox({
                                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
                             )}
                             {error && !loading && (
-                                <AlertCircle className="h-4 w-4 text-destructive mr-2" title={error} />
+                                <AlertCircle className="h-4 w-4 text-destructive mr-2" />
                             )}
                             {(options.length > 0 || loading) && (
                                 <Button

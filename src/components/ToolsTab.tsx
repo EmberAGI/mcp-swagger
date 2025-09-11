@@ -204,10 +204,6 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                                 onOpenChange={(open) => {
                                     toggleExpanded(tool.name);
                                     if (open) {
-                                        setSelectedTool(tool);
-                                        setToolArguments({});
-                                        setToolResult(null);
-                                        setError(null);
                                         setShowDocs(false);
                                     }
                                 }}
