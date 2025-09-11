@@ -18,7 +18,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useMCPConnection } from "@/lib/hooks/useMCPConnection";
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
 import { loadServerConfig } from "@/config/servers";
-import Image from "next/image";
 
 export default function Home() {
   const [showServerConfig, setShowServerConfig] = useState(false);
