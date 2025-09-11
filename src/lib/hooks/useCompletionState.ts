@@ -41,9 +41,11 @@ export function useCompletionState(
   const [state, setState] = useState<{
     completions: Record<string, string[]>;
     loading: Record<string, boolean>;
+    errors: Record<string, string | null>;
   }>({
     completions: {},
     loading: {},
+    errors: {},
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -65,6 +67,7 @@ export function useCompletionState(
     setState({
       completions: {},
       loading: {},
+      errors: {},
     });
   }, [cleanup]);
 
@@ -88,6 +91,7 @@ export function useCompletionState(
         setState((prev) => ({
           ...prev,
           loading: { ...prev.loading, [argName]: true },
+          errors: { ...prev.errors, [argName]: null },
         }));
 
         try {
@@ -111,14 +115,20 @@ export function useCompletionState(
               ...prev,
               completions: { ...prev.completions, [argName]: values },
               loading: { ...prev.loading, [argName]: false },
+              errors: { ...prev.errors, [argName]: null },
             }));
           }
         } catch (error) {
           console.error("Completion failed:", error);
           if (!abortController.signal.aborted) {
+            const errorMessage =
+              error instanceof Error
+                ? error.message
+                : "Failed to load suggestions";
             setState((prev) => ({
               ...prev,
               loading: { ...prev.loading, [argName]: false },
+              errors: { ...prev.errors, [argName]: errorMessage },
             }));
           }
         } finally {
@@ -131,6 +141,14 @@ export function useCompletionState(
     );
   }, [handleCompletion, completionsSupported, cleanup, debounceMs]);
 
+  // Clear error when user starts typing again
+  const clearError = useCallback((argName: string) => {
+    setState((prev) => ({
+      ...prev,
+      errors: { ...prev.errors, [argName]: null },
+    }));
+  }, []);
+
   // Clear completions when support status changes
   useEffect(() => {
     if (!completionsSupported) {
@@ -142,6 +160,7 @@ export function useCompletionState(
     ...state,
     clearCompletions,
     requestCompletions,
+    clearError,
     completionsSupported,
   };
 }

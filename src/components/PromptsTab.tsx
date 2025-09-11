@@ -40,7 +40,7 @@ export function PromptsTab({
     const [errorByPrompt, setErrorByPrompt] = useState<Record<string, string | null>>({});
     const [showDocs, setShowDocs] = useState<boolean>(false);
 
-    const { completions, clearCompletions, requestCompletions } = useCompletionState(
+    const { completions, loading, errors, clearCompletions, requestCompletions, clearError } = useCompletionState(
         handleCompletion ? (ref: any, argName: string, value: string, context?: Record<string, string>, signal?: AbortSignal) =>
             handleCompletion(ref, argName, value, context, signal) : (async () => []),
         completionsSupported && !!handleCompletion
@@ -65,14 +65,19 @@ export function PromptsTab({
         setExpandedPrompts(newExpanded);
     };
 
-    const handleArgumentChange = async (promptName: string, argName: string, value: string) => {
+    const handleArgumentChange = async (promptName: string, argName: string, value: string, isSelection: boolean = false) => {
         setArgsByPrompt(prev => ({
             ...prev,
             [promptName]: { ...(prev[promptName] || {}), [argName]: value }
         }));
 
-        // Request completions if supported
-        if (handleCompletion && completionsSupported) {
+        // Clear error when user starts typing
+        if (errors[argName]) {
+            clearError(argName);
+        }
+
+        // Request completions if supported, value is not empty, and user is typing (not selecting)
+        if (handleCompletion && completionsSupported && value.trim().length > 0 && !isSelection) {
             requestCompletions(
                 {
                     type: "ref/prompt",
@@ -171,13 +176,15 @@ export function PromptsTab({
                                                 {arg.description && (
                                                     <p className="text-sm text-muted-foreground">{arg.description}</p>
                                                 )}
-                                                {completions[arg.name] && completions[arg.name].length > 0 ? (
+                                                {handleCompletion && completionsSupported ? (
                                                     <Combobox
                                                         id={`arg-${prompt.name}-${arg.name}`}
                                                         value={(argsByPrompt[prompt.name]?.[arg.name]) || ""}
-                                                        onChange={(value) => handleArgumentChange(prompt.name, arg.name, value)}
-                                                        onInputChange={(value) => handleArgumentChange(prompt.name, arg.name, value)}
-                                                        options={completions[arg.name]}
+                                                        onChange={(value) => handleArgumentChange(prompt.name, arg.name, value, true)}
+                                                        onInputChange={(value) => handleArgumentChange(prompt.name, arg.name, value, false)}
+                                                        options={completions[arg.name] || []}
+                                                        loading={loading[arg.name] || false}
+                                                        error={errors[arg.name]}
                                                         placeholder={`Enter ${arg.name}...`}
                                                         emptyMessage="No suggestions available."
                                                     />
@@ -186,7 +193,7 @@ export function PromptsTab({
                                                         id={`arg-${prompt.name}-${arg.name}`}
                                                         placeholder={`Enter ${arg.name}...`}
                                                         value={(argsByPrompt[prompt.name]?.[arg.name]) || ""}
-                                                        onChange={(e) => handleArgumentChange(prompt.name, arg.name, e.target.value)}
+                                                        onChange={(e) => handleArgumentChange(prompt.name, arg.name, e.target.value, false)}
                                                     />
                                                 )}
                                             </div>
