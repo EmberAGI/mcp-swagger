@@ -255,6 +255,12 @@ export function useMCPConnection(): UseMCPConnectionReturn {
                   ListResourcesResultSchema
                 )
               : Promise.resolve({ resources: [] }),
+            capabilities?.resources
+              ? client.request(
+                  { method: "resources/templates/list" },
+                  ListResourceTemplatesResultSchema
+                )
+              : Promise.resolve({ resourceTemplates: [] }),
             capabilities?.prompts
               ? client.request(
                   { method: "prompts/list" },
@@ -263,7 +269,12 @@ export function useMCPConnection(): UseMCPConnectionReturn {
               : Promise.resolve({ prompts: [] }),
           ]);
 
-          const [toolsResult, resourcesResult, promptsResult] = results;
+          const [
+            toolsResult,
+            resourcesResult,
+            resourceTemplatesResult,
+            promptsResult,
+          ] = results;
 
           setConnectionState((prev) => ({
             ...prev,
@@ -272,6 +283,10 @@ export function useMCPConnection(): UseMCPConnectionReturn {
             resources:
               resourcesResult.status === "fulfilled"
                 ? resourcesResult.value.resources
+                : [],
+            resourceTemplates:
+              resourceTemplatesResult.status === "fulfilled"
+                ? resourceTemplatesResult.value.resourceTemplates
                 : [],
             prompts:
               promptsResult.status === "fulfilled"
@@ -287,6 +302,10 @@ export function useMCPConnection(): UseMCPConnectionReturn {
             resources:
               resourcesResult.status === "fulfilled"
                 ? resourcesResult.value.resources.length
+                : 0,
+            resourceTemplates:
+              resourceTemplatesResult.status === "fulfilled"
+                ? resourceTemplatesResult.value.resourceTemplates.length
                 : 0,
             prompts:
               promptsResult.status === "fulfilled"

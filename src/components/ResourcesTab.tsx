@@ -21,6 +21,13 @@ export function ResourcesTab({
     onReadResource,
     isConnected
 }: ResourcesTabProps) {
+    // Debug logging
+    console.log('[ResourcesTab] Received props:', {
+        resourcesCount: resources.length,
+        resourceTemplatesCount: resourceTemplates.length,
+        isConnected,
+        resources: resources.map(r => ({ uri: r.uri, name: r.name, mimeType: r.mimeType }))
+    });
     const [expandedResources, setExpandedResources] = useState<Set<string>>(new Set());
     const [expandedTemplates, setExpandedTemplates] = useState<Set<string>>(new Set());
     const [showDocs, setShowDocs] = useState<boolean>(false);

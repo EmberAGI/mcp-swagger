@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ServerSelector } from "@/components/ServerSelector";
 import { ToolsTab } from "@/components/ToolsTab";
 import { ResourcesTab } from "@/components/ResourcesTab";
+import { ResourceTemplatesTab } from "@/components/ResourceTemplatesTab";
 import { PromptsTab } from "@/components/PromptsTab";
-import { ConfigTab } from "@/components/ConfigTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Code, Database, MessageSquare, Settings, Activity, Lock, ChevronDown, Send, History } from "lucide-react";
+import { BookOpen, Code, Database, FileText, MessageSquare, Settings, Activity, Lock, ChevronDown, Send, History } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMCPConnection } from "@/lib/hooks/useMCPConnection";
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
@@ -429,7 +429,7 @@ export default function Home() {
         <Tabs value={activeTab} onValueChange={setActiveTab} style={{ width: '100%' }}>
           <TabsList style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
+            gridTemplateColumns: 'repeat(6, 1fr)',
             width: '100%',
             backgroundColor: 'rgba(255, 255, 255, 0.05)',
             borderRadius: '0.5rem',
@@ -454,23 +454,26 @@ export default function Home() {
               Resources
             </TabsTrigger>
             <TabsTrigger
+              value="resourceTemplates"
+              disabled={!connectionState.capabilities?.resources}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Templates
+            </TabsTrigger>
+            <TabsTrigger
               value="prompts"
               disabled={!connectionState.capabilities?.prompts}
             >
               <MessageSquare className="w-4 h-4 mr-2" />
               Prompts
             </TabsTrigger>
-            <TabsTrigger value="auth" disabled>
-              <Lock className="w-4 h-4 mr-2" />
-              Auth
-            </TabsTrigger>
             <TabsTrigger value="playground">
               <Activity className="w-4 h-4 mr-2" />
               Request
             </TabsTrigger>
-            <TabsTrigger value="config">
-              <Settings className="w-4 h-4 mr-2" />
-              Config
+            <TabsTrigger value="auth" disabled>
+              <Lock className="w-4 h-4 mr-2" />
+              Auth
             </TabsTrigger>
           </TabsList>
 
@@ -489,6 +492,14 @@ export default function Home() {
           <TabsContent value="resources" className="mt-6">
             <ResourcesTab
               resources={connectionState.resources}
+              resourceTemplates={connectionState.resourceTemplates}
+              onReadResource={readResource}
+              isConnected={connectionState.status === "connected"}
+            />
+          </TabsContent>
+
+          <TabsContent value="resourceTemplates" className="mt-6">
+            <ResourceTemplatesTab
               resourceTemplates={connectionState.resourceTemplates}
               onReadResource={readResource}
               isConnected={connectionState.status === "connected"}
@@ -586,13 +597,6 @@ export default function Home() {
             </div>
           </TabsContent>
 
-          <TabsContent value="config" className="mt-6">
-            <ConfigTab
-              onConfigUpdate={(config: MCPServerConfig) => {
-                console.log("Configuration updated:", config);
-              }}
-            />
-          </TabsContent>
         </Tabs>
 
         <Dialog open={showServerConfig} onOpenChange={setShowServerConfig}>
@@ -600,12 +604,9 @@ export default function Home() {
             <DialogHeader>
               <DialogTitle>Server Configuration</DialogTitle>
             </DialogHeader>
-            <ConfigTab
-              onConfigUpdate={(config: MCPServerConfig) => {
-                console.log("Configuration updated:", config);
-                setShowServerConfig(false);
-              }}
-            />
+            <div className="p-4">
+              <p className="text-muted-foreground">Server configuration functionality has been removed.</p>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
