@@ -19,6 +19,9 @@ import { useMCPConnection, PendingElicitationRequest } from "@/lib/hooks/useMCPC
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
 import { loadServerConfig } from "@/config/servers";
 import ElicitationModal from "@/components/ElicitationModal";
+import ConversationalPromptInput from "@/components/ConversationalPromptInput";
+import PromptDemoCard from "@/components/PromptDemoCard";
+import { PromptTemplate } from "@/config/prompts";
 import Image from "next/image";
 
 export default function Home() {
@@ -117,6 +120,27 @@ export default function Home() {
     }
   };
 
+  const handlePromptSubmit = async (prompt: string, template?: PromptTemplate) => {
+    console.log("Prompt submitted:", prompt);
+    console.log("Template used:", template);
+
+    // Add to history for tracking
+    addToHistory(
+      {
+        method: "prompt/submit",
+        template: template?.name || "custom",
+        prompt
+      },
+      { message: "Prompt submitted successfully" }
+    );
+
+    // Here you could process the prompt further:
+    // - Send to a specific prompt endpoint
+    // - Use it to call tools with parsed parameters
+    // - Store it for later use
+    // For now, we'll just log it and add to history
+  };
+
   const renderOverview = () => {
     if (connectionState.status !== "connected") {
       return (
@@ -137,59 +161,75 @@ export default function Home() {
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold mb-2">Server Overview</h2>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-4">
             Connected to {connectionState.server?.name}. Explore the available capabilities below.
           </p>
+
+          {/* Conversational Prompt Input */}
+          <ConversationalPromptInput
+            onSubmit={handlePromptSubmit}
+            placeholder="Ask something or type a command... (try: swap, long, supply, borrow)"
+            className="mb-6"
+            onCallTool={callTool}
+            onGetPrompt={getPrompt}
+            handleCompletion={handleCompletion}
+            completionsSupported={completionsSupported}
+            isConnected={connectionState.status === "connected"}
+          />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tools</CardTitle>
-              <Code className="h-4 w-4 text-muted-foreground" />
+        {/* Demo Card for Prompt Input */}
+        <PromptDemoCard />
+
+        {/* Status Cards moved to bottom */}
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="bg-muted/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Tools</CardTitle>
+              <Code className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{tools.length}</div>
+            <CardContent className="pt-1">
+              <div className="text-lg font-semibold text-muted-foreground">{tools.length}</div>
               <p className="text-xs text-muted-foreground">
                 {capabilities?.tools ? "Available" : "Not supported"}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Resources</CardTitle>
-              <Database className="h-4 w-4 text-muted-foreground" />
+          <Card className="bg-muted/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Resources</CardTitle>
+              <Database className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{resources.length}</div>
+            <CardContent className="pt-1">
+              <div className="text-lg font-semibold text-muted-foreground">{resources.length}</div>
               <p className="text-xs text-muted-foreground">
                 {capabilities?.resources ? "Available" : "Not supported"}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Prompts</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          <Card className="bg-muted/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Prompts</CardTitle>
+              <MessageSquare className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{prompts.length}</div>
+            <CardContent className="pt-1">
+              <div className="text-lg font-semibold text-muted-foreground">{prompts.length}</div>
               <p className="text-xs text-muted-foreground">
                 {capabilities?.prompts ? "Available" : "Not supported"}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Status</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
+          <Card className="bg-muted/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Status</CardTitle>
+              <Activity className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                <Badge variant="success">Online</Badge>
+            <CardContent className="pt-1">
+              <div className="text-lg font-semibold text-muted-foreground">
+                <Badge variant="secondary" className="text-xs">Online</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
                 Connected via {connectionState.server?.transport}
@@ -197,100 +237,6 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
-
-        {capabilities && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Server Capabilities</CardTitle>
-              <CardDescription>
-                Features and capabilities supported by this MCP server
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <h4 className="font-medium">Core Features</h4>
-                  <div className="space-y-1">
-                    {capabilities.tools && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">Tools</Badge>
-                        <span className="text-sm text-muted-foreground">
-                          Function calling capabilities
-                        </span>
-                      </div>
-                    )}
-                    {capabilities.resources && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">Resources</Badge>
-                        <span className="text-sm text-muted-foreground">
-                          Resource reading {capabilities.resources.subscribe && "& subscription"}
-                        </span>
-                      </div>
-                    )}
-                    {capabilities.prompts && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">Prompts</Badge>
-                        <span className="text-sm text-muted-foreground">
-                          Prompt templates
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-medium">Advanced Features</h4>
-                  <div className="space-y-1">
-                    {capabilities.logging && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                          padding: '0.25rem 0.75rem',
-                          border: '1px solid rgba(253, 103, 49, 0.3)',
-                          borderRadius: '9999px',
-                          color: '#FD6731',
-                          fontSize: '0.75rem',
-                          fontWeight: '500'
-                        }}>Logging</span>
-                        <span style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.6)' }}>
-                          Server-side logging
-                        </span>
-                      </div>
-                    )}
-                    {capabilities.sampling ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                          padding: '0.25rem 0.75rem',
-                          border: '1px solid rgba(253, 103, 49, 0.3)',
-                          borderRadius: '9999px',
-                          color: '#FD6731',
-                          fontSize: '0.75rem',
-                          fontWeight: '500'
-                        }}>Sampling</span>
-                        <span style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.6)' }}>
-                          LLM sampling requests
-                        </span>
-                      </div>
-                    ) : null}
-                    {capabilities.completions ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                          padding: '0.25rem 0.75rem',
-                          border: '1px solid rgba(253, 103, 49, 0.3)',
-                          borderRadius: '9999px',
-                          color: '#FD6731',
-                          fontSize: '0.75rem',
-                          fontWeight: '500'
-                        }}>Completions</span>
-                        <span style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.6)' }}>
-                          Auto-completion support
-                        </span>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     );
   };
