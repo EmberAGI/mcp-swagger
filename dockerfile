@@ -19,27 +19,30 @@ RUN npm run build
 # Etapa 3: runtime
 FROM node:20-alpine AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production
 ENV PORT=8080
-ENV HOSTNAME="0.0.0.0"
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 
-RUN apk add --no-cache libc6-compat curl
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN apk add --no-cache libc6-compat ca-certificates curl
 
+# Copia deps y purga dev
 COPY --from=deps /app/node_modules ./node_modules
+RUN npm prune --omit=dev
+
+# Copia artefactos de build
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 
-# Set proper permissions
-RUN chown -R nextjs:nodejs /app
+# Usuario no-root
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 nextjs \
+ && chown -R nextjs:nodejs /app
 USER nextjs
 
 EXPOSE 8080
-
-# Health check for AppRunner
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/api/health || exit 1
-
-CMD ["npm","run","start","--","-p","8080","-H","0.0.0.0"]
+# Start Next.js directly without npm wrapper
+CMD ["node_modules/.bin/next", "start", "-p", "8080", "-H", "0.0.0.0"]

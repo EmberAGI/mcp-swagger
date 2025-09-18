@@ -1,4 +1,4 @@
-# MCP Swagger
+gco# MCP Swagger
 
 A modern documentation and testing tool for Model Context Protocol (MCP) servers, inspired by Swagger UI for REST APIs.
 
