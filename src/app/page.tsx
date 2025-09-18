@@ -13,11 +13,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Code, Database, FileText, MessageSquare, Settings, Activity, Lock, ChevronDown, Send, History } from "lucide-react";
+import { BookOpen, Code, Database, FileText, MessageSquare, Settings, Activity, Lock, ChevronDown, Send, History, HelpCircle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useMCPConnection } from "@/lib/hooks/useMCPConnection";
+import { useMCPConnection, PendingElicitationRequest } from "@/lib/hooks/useMCPConnection";
 import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
 import { loadServerConfig } from "@/config/servers";
+import ElicitationModal from "@/components/ElicitationModal";
 import Image from "next/image";
 
 export default function Home() {
@@ -26,6 +27,7 @@ export default function Home() {
   const [customRequest, setCustomRequest] = useState("{\n  \"method\": \"\",\n  \"params\": {}\n}");
   const [requestHistory, setRequestHistory] = useState<Array<{ id: string; timestamp: Date; request: any; response: any; error?: string }>>([]);
   const [isSending, setIsSending] = useState(false);
+  const [currentElicitation, setCurrentElicitation] = useState<PendingElicitationRequest | null>(null);
 
   const {
     connectionState,
@@ -37,6 +39,8 @@ export default function Home() {
     makeRequest,
     handleCompletion,
     completionsSupported,
+    pendingElicitations,
+    resolveElicitation,
   } = useMCPConnection();
 
   const serverConfig = useMemo(() => loadServerConfig(), []);
@@ -66,6 +70,13 @@ export default function Home() {
     }
   }, [connectionState.status, serverConfig, connect]);
 
+  // Auto-show elicitation modal when new requests arrive
+  useEffect(() => {
+    if (pendingElicitations.length > 0 && !currentElicitation) {
+      setCurrentElicitation(pendingElicitations[0]);
+    }
+  }, [pendingElicitations, currentElicitation]);
+
   const handleConnect = async (server: MCPServer) => {
     await connect(server);
     // The lists are now fetched automatically in the connect function
@@ -92,6 +103,17 @@ export default function Home() {
       addToHistory(request, null, error instanceof Error ? error.message : String(error));
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleElicitationClose = () => {
+    setCurrentElicitation(null);
+    // If there are more pending requests, show the next one
+    if (pendingElicitations.length > 1) {
+      const nextElicitation = pendingElicitations.find(e => e.id !== currentElicitation?.id);
+      if (nextElicitation) {
+        setTimeout(() => setCurrentElicitation(nextElicitation), 100);
+      }
     }
   };
 
@@ -345,6 +367,22 @@ export default function Home() {
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                 onClick={(e) => e.stopPropagation()}
               >
+                {pendingElicitations.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.75rem',
+                    fontWeight: '500'
+                  }}>
+                    <HelpCircle style={{ width: '0.875rem', height: '0.875rem' }} />
+                    {pendingElicitations.length} request{pendingElicitations.length > 1 ? 's' : ''} pending
+                  </div>
+                )}
                 {connectionState.status === "connected" && (
                   <>
                     <Badge variant="success">Connected</Badge>
@@ -516,8 +554,6 @@ export default function Home() {
             />
           </TabsContent>
 
-
-
           <TabsContent value="playground" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
@@ -609,6 +645,13 @@ export default function Home() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Elicitation Modal */}
+        <ElicitationModal
+          request={currentElicitation}
+          onResolve={resolveElicitation}
+          onClose={handleElicitationClose}
+        />
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import {
   CompleteResultSchema,
   McpError,
   ErrorCode,
+  ElicitRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { MCPServer, ConnectionState } from "@/lib/types/mcp";
@@ -27,6 +28,23 @@ import {
   getDetailedErrorInfo,
   categorizeConnectionError,
 } from "@/lib/errorUtils";
+
+export interface ElicitationRequest {
+  id: number;
+  message: string;
+  requestedSchema: any;
+}
+
+export interface ElicitationResponse {
+  action: "accept" | "decline" | "cancel";
+  content?: Record<string, unknown>;
+}
+
+export type PendingElicitationRequest = {
+  id: number;
+  request: ElicitationRequest;
+  originatingTab?: string;
+};
 
 interface UseMCPConnectionReturn {
   connectionState: ConnectionState;
@@ -53,6 +71,8 @@ interface UseMCPConnectionReturn {
     signal?: AbortSignal
   ) => Promise<string[]>;
   completionsSupported: boolean;
+  pendingElicitations: PendingElicitationRequest[];
+  resolveElicitation: (id: number, response: ElicitationResponse) => void;
 }
 
 export function useMCPConnection(): UseMCPConnectionReturn {
@@ -67,6 +87,13 @@ export function useMCPConnection(): UseMCPConnectionReturn {
 
   const [mcpClient, setMcpClient] = useState<Client | null>(null);
   const [completionsSupported, setCompletionsSupported] = useState(true);
+  const [pendingElicitations, setPendingElicitations] = useState<
+    PendingElicitationRequest[]
+  >([]);
+  const [elicitationCounter, setElicitationCounter] = useState(0);
+  const elicitationResolvesRef = useRef<Map<number, (response: any) => void>>(
+    new Map()
+  );
   const isConnectingRef = useRef(false);
   const isUnmountingRef = useRef(false);
   const mcpClientRef = useRef<Client | null>(null);
@@ -78,6 +105,30 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     isUnmountingRef.current = false;
   }, []);
   const ignoreUnmountGuardRef = useRef(false);
+
+  const resolveElicitation = useCallback(
+    (id: number, response: ElicitationResponse) => {
+      const resolve = elicitationResolvesRef.current.get(id);
+      if (resolve) {
+        elicitationResolvesRef.current.delete(id);
+        setPendingElicitations((prev) => prev.filter((e) => e.id !== id));
+
+        // Convert response to MCP elicitation response format
+        const mcpResponse = {
+          result: response.action === "accept" ? response.content : null,
+          error:
+            response.action === "decline"
+              ? { code: -32001, message: "User declined" }
+              : response.action === "cancel"
+              ? { code: -32002, message: "User cancelled" }
+              : null,
+        };
+
+        resolve(mcpResponse);
+      }
+    },
+    []
+  );
 
   const disconnect = useCallback(async () => {
     console.log("[MCP] Disconnecting...");
@@ -127,6 +178,11 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     // Reset flags and features
     isConnectingRef.current = false;
     setCompletionsSupported(true);
+
+    // Clear elicitation state
+    setPendingElicitations([]);
+    setElicitationCounter(0);
+    elicitationResolvesRef.current.clear();
   }, [mcpClient, connectionState.server?.url]);
 
   const connect = useCallback(
@@ -166,7 +222,9 @@ export function useMCPConnection(): UseMCPConnectionReturn {
             version: "1.0.0",
           },
           {
-            capabilities: {},
+            capabilities: {
+              elicitation: {},
+            },
           }
         );
 
@@ -219,6 +277,28 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         // Give the server a moment to complete the handshake
         await new Promise((resolve) => setTimeout(resolve, 100));
         console.log("[MCP] Handshake period complete");
+
+        // Set up elicitation request handler
+        client.setRequestHandler(ElicitRequestSchema, async (request) => {
+          return new Promise((resolve) => {
+            const id = elicitationCounter + 1;
+            setElicitationCounter(id);
+
+            const elicitationRequest: ElicitationRequest = {
+              id,
+              message: request.params.message || "Please provide information",
+              requestedSchema: request.params.requestedSchema || {},
+            };
+
+            const pendingRequest: PendingElicitationRequest = {
+              id,
+              request: elicitationRequest,
+            };
+
+            setPendingElicitations((prev) => [...prev, pendingRequest]);
+            elicitationResolvesRef.current.set(id, resolve);
+          });
+        });
 
         const capabilities = client.getServerCapabilities();
         console.log("[MCP] Server capabilities:", capabilities);
@@ -577,5 +657,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     makeRequest,
     handleCompletion,
     completionsSupported,
+    pendingElicitations,
+    resolveElicitation,
   };
 }
