@@ -31,7 +31,8 @@ import {
     Wand2,
     Check,
     ArrowRight,
-    Loader2
+    Loader2,
+    Sparkles
 } from 'lucide-react';
 import {
     promptTemplates,
@@ -41,6 +42,7 @@ import {
     PromptParameter
 } from '@/config/prompts';
 import { useCompletionState } from '@/lib/hooks/useCompletionState';
+import { ToolResultRenderer } from './ToolResultRenderer';
 
 interface ConversationalPromptInputProps {
     onSubmit: (prompt: string, template?: PromptTemplate) => void;
@@ -64,7 +66,7 @@ interface ParameterValue {
     [key: string]: string | boolean;
 }
 
-export default function ConversationalPromptInput({
+const ConversationalPromptInput = React.forwardRef<HTMLInputElement, ConversationalPromptInputProps>(({
     onSubmit,
     placeholder = "Type a command or ask something...",
     className = "",
@@ -73,7 +75,7 @@ export default function ConversationalPromptInput({
     handleCompletion,
     completionsSupported = false,
     isConnected = false
-}: ConversationalPromptInputProps) {
+}, ref) => {
     const [inputValue, setInputValue] = useState('');
     const [ghostText, setGhostText] = useState('');
     const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null);
@@ -81,6 +83,7 @@ export default function ConversationalPromptInput({
     const [activeParameterIndex, setActiveParameterIndex] = useState(-1);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [suggestions, setSuggestions] = useState<PromptTemplate[]>([]);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
     const [isPromptDropdownOpen, setIsPromptDropdownOpen] = useState(false);
     const [isExecuting, setIsExecuting] = useState(false);
     const [executionResult, setExecutionResult] = useState<any>(null);
@@ -102,18 +105,28 @@ export default function ConversationalPromptInput({
             const newSuggestions = getPromptSuggestions(inputValue);
             setSuggestions(newSuggestions);
             setShowSuggestions(newSuggestions.length > 0);
+            setSelectedSuggestionIndex(-1); // Reset selection when suggestions change
 
             // Check for trigger word match
             const matchedTemplate = findPromptByTrigger(inputValue);
             if (matchedTemplate) {
-                const remainingText = inputValue.substring(matchedTemplate.triggerWords[0].length);
-                setGhostText(matchedTemplate.template.substring(remainingText.length));
+                const triggerWord = matchedTemplate.triggerWords[0];
+                const userInputAfterTrigger = inputValue.substring(triggerWord.length);
+                const templateAfterTrigger = matchedTemplate.template.substring(triggerWord.length);
+
+                // Show ghost text for the remaining part that hasn't been typed yet
+                if (templateAfterTrigger.startsWith(userInputAfterTrigger) && userInputAfterTrigger !== templateAfterTrigger) {
+                    setGhostText(templateAfterTrigger.substring(userInputAfterTrigger.length));
+                } else {
+                    setGhostText('');
+                }
             } else {
                 setGhostText('');
             }
         } else {
             setShowSuggestions(false);
             setGhostText('');
+            setSelectedSuggestionIndex(-1);
         }
     }, [inputValue, selectedTemplate]);
 
@@ -128,9 +141,24 @@ export default function ConversationalPromptInput({
             activateTemplate();
         } else if (e.key === 'Enter' && !selectedTemplate) {
             e.preventDefault();
-            handleSubmit();
+            if (showSuggestions && selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestions.length) {
+                // Select the highlighted suggestion
+                selectTemplate(suggestions[selectedSuggestionIndex]);
+            } else {
+                handleSubmit();
+            }
         } else if (e.key === 'Escape') {
             clearTemplate();
+        } else if (e.key === 'ArrowDown' && showSuggestions && suggestions.length > 0) {
+            e.preventDefault();
+            setSelectedSuggestionIndex(prev =>
+                prev < suggestions.length - 1 ? prev + 1 : 0
+            );
+        } else if (e.key === 'ArrowUp' && showSuggestions && suggestions.length > 0) {
+            e.preventDefault();
+            setSelectedSuggestionIndex(prev =>
+                prev > 0 ? prev - 1 : suggestions.length - 1
+            );
         }
     };
 
@@ -177,7 +205,11 @@ export default function ConversationalPromptInput({
         // Request completions if supported and it's a text input
         if (selectedTemplate && handleCompletion && completionsSupported &&
             typeof value === 'string' && value.trim().length > 0 && !isSelection) {
-            const context = { ...parameterValues, [paramName]: value };
+            // Convert all values to strings for context
+            const context: Record<string, string> = {};
+            Object.entries({ ...parameterValues, [paramName]: value }).forEach(([key, val]) => {
+                context[key] = typeof val === 'boolean' ? val.toString() : val;
+            });
             requestCompletions(
                 {
                     type: "ref/prompt" as const,
@@ -247,7 +279,7 @@ export default function ConversationalPromptInput({
             }
 
             // Always call the onSubmit handler as well for logging/history
-            onSubmit(finalPrompt, selectedTemplate);
+            onSubmit(finalPrompt, selectedTemplate || undefined);
 
             // Don't clear template immediately if we executed successfully - let user see result
             if (!selectedTemplate || !isConnected) {
@@ -258,7 +290,7 @@ export default function ConversationalPromptInput({
             setExecutionError(error instanceof Error ? error.message : 'Execution failed');
 
             // Still call onSubmit for logging
-            onSubmit(finalPrompt, selectedTemplate);
+            onSubmit(finalPrompt, selectedTemplate || undefined);
         } finally {
             setIsExecuting(false);
         }
@@ -440,29 +472,14 @@ export default function ConversationalPromptInput({
                     </div>
                 </div>
 
-                {/* Execution Results */}
-                {(executionResult || executionError) && (
-                    <div className="p-4 rounded-lg border">
-                        {executionError ? (
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-red-600 font-medium">
-                                    <span className="text-sm">❌ Execution Error</span>
-                                </div>
-                                <pre className="text-sm text-red-700 bg-red-50 dark:bg-red-950/20 p-3 rounded overflow-auto">
-                                    {executionError}
-                                </pre>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-green-600 font-medium">
-                                    <span className="text-sm">✅ Execution Result</span>
-                                </div>
-                                <pre className="text-sm bg-green-50 dark:bg-green-950/20 p-3 rounded overflow-auto max-h-40">
-                                    {JSON.stringify(executionResult, null, 2)}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
+                {/* Tool Result Renderer */}
+                {(executionResult || executionError || isExecuting) && selectedTemplate && (
+                    <ToolResultRenderer
+                        toolName={selectedTemplate.id}
+                        result={executionResult}
+                        isLoading={isExecuting}
+                        error={executionError}
+                    />
                 )}
             </div>
         );
@@ -477,7 +494,7 @@ export default function ConversationalPromptInput({
                     <div className="flex items-center gap-3">
                         <div className="relative flex-1">
                             <Input
-                                ref={inputRef}
+                                ref={ref || inputRef}
                                 value={inputValue}
                                 onChange={(e) => handleInputChange(e.target.value)}
                                 onKeyDown={handleKeyDown}
@@ -486,65 +503,72 @@ export default function ConversationalPromptInput({
                             />
 
                             {ghostText && (
-                                <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
-                                    <span className="invisible">{inputValue}</span>
-                                    <span className="text-gray-400 dark:text-gray-500">
-                                        {ghostText}
-                                    </span>
+                                <div className="absolute inset-0 flex items-center px-3 pointer-events-none overflow-hidden">
+                                    <div className="relative w-full overflow-hidden">
+                                        <span className="invisible whitespace-pre">{inputValue}</span>
+                                        <span className="absolute left-0 top-0 text-transparent whitespace-pre overflow-hidden">
+                                            {inputValue}
+                                            <span className="text-gray-400 dark:text-gray-500">
+                                                {ghostText}
+                                            </span>
+                                        </span>
+                                    </div>
                                 </div>
                             )}
 
-                            {ghostText && (
-                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                            {/* Prompts button inside the input */}
+                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+                                {ghostText && (
                                     <Badge variant="secondary" className="text-xs">
                                         Tab to complete
                                     </Badge>
-                                </div>
-                            )}
-                        </div>
-
-                        <Popover open={isPromptDropdownOpen} onOpenChange={setIsPromptDropdownOpen}>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" size="default" className="shrink-0 h-12">
-                                    <Wand2 className="h-5 w-5 mr-2" />
-                                    Prompts
-                                    <ChevronDown className="h-4 w-4 ml-2" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80" align="end">
-                                <Command>
-                                    <CommandInput placeholder="Search prompts..." />
-                                    <CommandList>
-                                        <CommandEmpty>No prompts found.</CommandEmpty>
-                                        <CommandGroup heading="Available Prompts">
-                                            {promptTemplates.map((template) => (
-                                                <CommandItem
-                                                    key={template.id}
-                                                    onSelect={() => selectTemplate(template)}
-                                                    className="cursor-pointer"
-                                                >
-                                                    <div className="flex flex-col gap-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-medium">{template.name}</span>
-                                                            <div className="flex gap-1">
-                                                                {template.triggerWords.slice(0, 2).map(word => (
-                                                                    <Badge key={word} variant="outline" className="text-xs">
-                                                                        {word}
-                                                                    </Badge>
-                                                                ))}
+                                )}
+                                <Popover open={isPromptDropdownOpen} onOpenChange={setIsPromptDropdownOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600 text-white"
+                                        >
+                                            <Sparkles className="h-4 w-4" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-full" align="start" side="bottom">
+                                        <Command>
+                                            <CommandInput placeholder="Search prompts..." />
+                                            <CommandList>
+                                                <CommandEmpty>No prompts found.</CommandEmpty>
+                                                <CommandGroup heading="Available Prompts">
+                                                    {promptTemplates.map((template) => (
+                                                        <CommandItem
+                                                            key={template.id}
+                                                            onSelect={() => selectTemplate(template)}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-medium">{template.name}</span>
+                                                                    <div className="flex gap-1">
+                                                                        {template.triggerWords.slice(0, 2).map(word => (
+                                                                            <Badge key={word} variant="outline" className="text-xs">
+                                                                                {word}
+                                                                            </Badge>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {template.description}
+                                                                </span>
                                                             </div>
-                                                        </div>
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {template.description}
-                                                        </span>
-                                                    </div>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                        </div>
 
                         <Button
                             onClick={handleSubmit}
@@ -558,22 +582,27 @@ export default function ConversationalPromptInput({
                     </div>
 
                     {showSuggestions && suggestions.length > 0 && (
-                        <Card className="absolute top-full left-0 right-0 mt-1 z-50 shadow-lg">
+                        <Card className="absolute top-full left-0 right-0 mt-1 z-50 shadow-lg max-h-80">
                             <CardContent className="p-2">
                                 <div className="text-xs text-muted-foreground mb-2">Suggestions:</div>
-                                {suggestions.map((template) => (
-                                    <div
-                                        key={template.id}
-                                        onClick={() => selectTemplate(template)}
-                                        className="flex items-center gap-2 p-2 hover:bg-accent rounded cursor-pointer"
-                                    >
-                                        <div className="flex-1">
-                                            <div className="font-medium text-sm">{template.name}</div>
-                                            <div className="text-xs text-muted-foreground">{template.description}</div>
+                                <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
+                                    {suggestions.map((template, index) => (
+                                        <div
+                                            key={template.id}
+                                            onClick={() => selectTemplate(template)}
+                                            className={`flex items-center gap-2 p-2 rounded cursor-pointer ${index === selectedSuggestionIndex
+                                                ? 'bg-accent border border-blue-500'
+                                                : 'hover:bg-accent'
+                                                }`}
+                                        >
+                                            <div className="flex-1">
+                                                <div className="font-medium text-sm">{template.name}</div>
+                                                <div className="text-xs text-muted-foreground">{template.description}</div>
+                                            </div>
+                                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
                                         </div>
-                                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </CardContent>
                         </Card>
                     )}
@@ -581,4 +610,8 @@ export default function ConversationalPromptInput({
             )}
         </div>
     );
-}
+});
+
+ConversationalPromptInput.displayName = "ConversationalPromptInput";
+
+export default ConversationalPromptInput;

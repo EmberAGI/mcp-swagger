@@ -21,6 +21,7 @@ import {
   ErrorCode,
   ElicitRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+
 import { z } from "zod";
 import { MCPServer, ConnectionState } from "@/lib/types/mcp";
 import {
@@ -37,7 +38,7 @@ export interface ElicitationRequest {
 
 export interface ElicitationResponse {
   action: "accept" | "decline" | "cancel";
-  content?: Record<string, unknown>;
+  content?: any;
 }
 
 export type PendingElicitationRequest = {
@@ -72,6 +73,10 @@ interface UseMCPConnectionReturn {
   ) => Promise<string[]>;
   completionsSupported: boolean;
   pendingElicitations: PendingElicitationRequest[];
+  currentElicitation: PendingElicitationRequest | null;
+  setCurrentElicitation: (
+    elicitation: PendingElicitationRequest | null
+  ) => void;
   resolveElicitation: (id: number, response: ElicitationResponse) => void;
 }
 
@@ -90,82 +95,68 @@ export function useMCPConnection(): UseMCPConnectionReturn {
   const [pendingElicitations, setPendingElicitations] = useState<
     PendingElicitationRequest[]
   >([]);
+  const [currentElicitation, setCurrentElicitation] =
+    useState<PendingElicitationRequest | null>(null);
   const [elicitationCounter, setElicitationCounter] = useState(0);
   const elicitationResolvesRef = useRef<Map<number, (response: any) => void>>(
     new Map()
   );
+
+  // Auto-show elicitation modal when new requests arrive
+  useEffect(() => {
+    if (pendingElicitations.length > 0 && !currentElicitation) {
+      console.log("[MCP] *** AUTO-SHOWING ELICITATION MODAL ***");
+      setCurrentElicitation(pendingElicitations[0]);
+    }
+  }, [pendingElicitations, currentElicitation]);
+
   const isConnectingRef = useRef(false);
   const isUnmountingRef = useRef(false);
   const mcpClientRef = useRef<Client | null>(null);
+
   useEffect(() => {
     mcpClientRef.current = mcpClient;
   }, [mcpClient]);
-  // Ensure unmount flag is clear on mount
+
   useEffect(() => {
     isUnmountingRef.current = false;
   }, []);
+
   const ignoreUnmountGuardRef = useRef(false);
 
   const resolveElicitation = useCallback(
     (id: number, response: ElicitationResponse) => {
-      const resolve = elicitationResolvesRef.current.get(id);
-      if (resolve) {
+      console.log("[MCP] Resolving elicitation:", id, response);
+      const resolver = elicitationResolvesRef.current.get(id);
+      if (resolver) {
+        resolver(response);
         elicitationResolvesRef.current.delete(id);
-        setPendingElicitations((prev) => prev.filter((e) => e.id !== id));
+      }
 
-        // Convert response to MCP elicitation response format
-        const mcpResponse = {
-          result: response.action === "accept" ? response.content : null,
-          error:
-            response.action === "decline"
-              ? { code: -32001, message: "User declined" }
-              : response.action === "cancel"
-              ? { code: -32002, message: "User cancelled" }
-              : null,
-        };
+      // Remove from pending list
+      setPendingElicitations((prev) => prev.filter((p) => p.id !== id));
 
-        resolve(mcpResponse);
+      // Close current modal if it's this elicitation
+      if (currentElicitation?.id === id) {
+        setCurrentElicitation(null);
       }
     },
-    []
+    [currentElicitation]
   );
 
   const disconnect = useCallback(async () => {
     console.log("[MCP] Disconnecting...");
-    const serverUrl = connectionState.server?.url;
-    const sessionKey = serverUrl ? `mcp-session-${serverUrl}` : undefined;
-    const sessionId = sessionKey ? localStorage.getItem(sessionKey) : undefined;
+    isUnmountingRef.current = true;
 
-    // Close client first
     if (mcpClient) {
       try {
         await mcpClient.close();
-        console.log("[MCP] Client closed successfully");
       } catch (error) {
-        console.error("[MCP] Error closing client:", error);
-      }
-      setMcpClient(null);
-    }
-
-    // Ask proxy to tear down the session on the server side
-    if (sessionId) {
-      try {
-        await fetch("/api/mcp", {
-          method: "DELETE",
-          headers: { "mcp-session-id": sessionId },
-        });
-        console.log(`[MCP] Proxy session ${sessionId} deleted`);
-      } catch (error) {
-        console.warn("[MCP] Failed to delete proxy session:", error);
+        console.warn("[MCP] Error closing client:", error);
       }
     }
 
-    // Clear session from localStorage
-    if (sessionKey) {
-      localStorage.removeItem(sessionKey);
-    }
-
-    // Reset connection state
+    setMcpClient(null);
     setConnectionState({
       status: "disconnected",
       tools: [],
@@ -175,11 +166,8 @@ export function useMCPConnection(): UseMCPConnectionReturn {
       notifications: [],
     });
 
-    // Reset flags and features
     isConnectingRef.current = false;
     setCompletionsSupported(true);
-
-    // Clear elicitation state
     setPendingElicitations([]);
     setElicitationCounter(0);
     elicitationResolvesRef.current.clear();
@@ -189,13 +177,11 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     async (server: MCPServer) => {
       console.log("[MCP] Connecting to server:", server);
 
-      // Prevent concurrent connections
       if (isConnectingRef.current) {
         console.log("[MCP] Connection already in progress, skipping...");
         return;
       }
 
-      // Don't connect if we're unmounting (unless explicitly ignored for a safe internal retry)
       if (isUnmountingRef.current && !ignoreUnmountGuardRef.current) {
         console.log("[MCP] Component is unmounting, skipping connection...");
         return;
@@ -203,7 +189,6 @@ export function useMCPConnection(): UseMCPConnectionReturn {
 
       isConnectingRef.current = true;
 
-      // Disconnect any existing connection and clear prior session
       if (mcpClient || connectionState.server?.url) {
         await disconnect();
       }
@@ -228,12 +213,10 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           }
         );
 
-        // Use proxy for CORS handling
         const proxyUrl = `/api/mcp?url=${encodeURIComponent(
           server.url || ""
         )}&transportType=${server.transport}`;
 
-        // Always create a fresh session ID for a clean initialize
         let sessionId = crypto.randomUUID();
         localStorage.setItem(`mcp-session-${server.url}`, sessionId);
         console.log(`[MCP] Generated new session ID: ${sessionId}`);
@@ -262,24 +245,12 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         }
 
         console.log("[MCP] Connecting via proxy:", proxyUrl);
-        console.log("[MCP] Transport type:", server.transport);
-        console.log("[MCP] Target URL:", server.url);
-
-        console.log("[MCP] Transport created");
-
-        // Connect to the server - MCP SDK will handle initialization automatically
-        console.log("[MCP] Connecting to server...");
-        console.log("[MCP] Transport endpoint:", transport.endpoint);
-
         await client.connect(transport);
         console.log("[MCP] Client connected successfully!");
 
-        // Give the server a moment to complete the handshake
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        console.log("[MCP] Handshake period complete");
-
         // Set up elicitation request handler
         client.setRequestHandler(ElicitRequestSchema, async (request) => {
+          console.log("[MCP] Received elicitation request:", request);
           return new Promise((resolve) => {
             const id = elicitationCounter + 1;
             setElicitationCounter(id);
@@ -300,21 +271,39 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           });
         });
 
+        // Set up message handler for elicitation detection
+        const originalOnMessage = transport.onmessage;
+        transport.onmessage = (message: any) => {
+          // Handle elicitation/create messages immediately
+          if (message.method === "elicitation/create") {
+            console.log("[MCP] *** ELICITATION MESSAGE RECEIVED ***");
+
+            const id = elicitationCounter + 1;
+            setElicitationCounter(id);
+
+            const elicitationRequest: ElicitationRequest = {
+              id,
+              message: message.params?.message || "Please provide information",
+              requestedSchema: message.params?.requestedSchema || {},
+            };
+
+            const pendingRequest: PendingElicitationRequest = {
+              id,
+              request: elicitationRequest,
+            };
+
+            setPendingElicitations((prev) => [...prev, pendingRequest]);
+            elicitationResolvesRef.current.set(id, (response: any) => {
+              console.log("[MCP] Elicitation response received:", response);
+            });
+          }
+
+          if (originalOnMessage) {
+            originalOnMessage(message);
+          }
+        };
+
         const capabilities = client.getServerCapabilities();
-        console.log("[MCP] Server capabilities:", capabilities);
-
-        if (!capabilities) {
-          console.warn(
-            "[MCP] Warning: Server capabilities are undefined. This might indicate a connection issue."
-          );
-        } else {
-          console.log("[MCP] Server supports:", {
-            tools: capabilities.tools ? "Yes" : "No",
-            resources: capabilities.resources ? "Yes" : "No",
-            prompts: capabilities.prompts ? "Yes" : "No",
-          });
-        }
-
         setMcpClient(client);
         setConnectionState((prev) => ({
           ...prev,
@@ -323,7 +312,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           error: undefined,
         }));
 
-        // Fetch initial lists if capabilities support them
+        // Fetch initial lists
         try {
           const results = await Promise.allSettled([
             capabilities?.tools
@@ -373,46 +362,17 @@ export function useMCPConnection(): UseMCPConnectionReturn {
                 ? promptsResult.value.prompts
                 : [],
           }));
-
-          console.log("[MCP] Initial lists fetched:", {
-            tools:
-              toolsResult.status === "fulfilled"
-                ? toolsResult.value.tools.length
-                : 0,
-            resources:
-              resourcesResult.status === "fulfilled"
-                ? resourcesResult.value.resources.length
-                : 0,
-            resourceTemplates:
-              resourceTemplatesResult.status === "fulfilled"
-                ? resourceTemplatesResult.value.resourceTemplates.length
-                : 0,
-            prompts:
-              promptsResult.status === "fulfilled"
-                ? promptsResult.value.prompts.length
-                : 0,
-          });
         } catch (error) {
-          console.error("[MCP] Error fetching initial lists:", error);
+          console.warn("[MCP] Error fetching initial lists:", error);
         }
 
-        // Mark connection as complete
         isConnectingRef.current = false;
-      } catch (error) {
-        console.error("[MCP] Connection error:", error);
-
-        // Get detailed error information
-        const errorDetails = getDetailedErrorInfo(error);
+      } catch (error: any) {
+        console.error("[MCP] Connection failed:", error);
         const basicErrorMessage = getErrorMessage(error);
-        console.error("[MCP] Detailed error info:", errorDetails);
+        const errorDetails = getDetailedErrorInfo(error);
 
-        const looksLikeAlreadyInitialized =
-          /already\s+initialized/i.test(basicErrorMessage) ||
-          (/initialize/i.test(basicErrorMessage) &&
-            /already/i.test(basicErrorMessage));
-
-        // If server reports already initialized, reset proxy session + local session and retry once
-        if (looksLikeAlreadyInitialized && server.url) {
+        if (basicErrorMessage.includes("already initialized")) {
           try {
             const sessionKey = `mcp-session-${server.url}`;
             const sessionId = localStorage.getItem(sessionKey);
@@ -431,16 +391,8 @@ export function useMCPConnection(): UseMCPConnectionReturn {
               localStorage.removeItem(sessionKey);
             }
 
-            // Allow re-entry for retry
             isConnectingRef.current = false;
-
-            // Brief delay to ensure proxy cleanup
             await new Promise((r) => setTimeout(r, 50));
-
-            // Retry once (temporarily ignore unmount guard for this call)
-            console.log(
-              "[MCP] Retrying connection after already-initialized error..."
-            );
             ignoreUnmountGuardRef.current = true;
             try {
               await connect(server);
@@ -456,7 +408,6 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           }
         }
 
-        // Categorize and enhance the error message
         const categorizedError = categorizeConnectionError(basicErrorMessage);
         const { userFriendlyMessage } = categorizedError;
 
@@ -464,8 +415,6 @@ export function useMCPConnection(): UseMCPConnectionReturn {
           basicErrorMessage === "Unknown error occurred"
             ? "Connection failed: Unable to connect to the MCP server. Check the debug panel for more details."
             : userFriendlyMessage;
-
-        console.error("[MCP] Final error message:", finalErrorMessage);
 
         setConnectionState({
           status: "error",
@@ -494,9 +443,7 @@ export function useMCPConnection(): UseMCPConnectionReturn {
       }
 
       try {
-        console.log("[MCP] Making request:", request.method);
         const response = await mcpClient.request(request, schema);
-        console.log("[MCP] Request successful:", request.method);
         return response;
       } catch (error) {
         console.error("[MCP] Request error:", error);
@@ -506,80 +453,95 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     [mcpClient]
   );
 
-  const listTools = useCallback(async (): Promise<Tool[]> => {
-    const response = await makeRequest(
-      { method: "tools/list", params: {} },
+  const callTool = useCallback(
+    async (name: string, args: Record<string, unknown>) => {
+      console.log("[MCP] Calling tool:", name, "with args:", args);
+
+      try {
+        const result = await makeRequest(
+          { method: "tools/call", params: { name, arguments: args } },
+          CallToolResultSchema
+        );
+        console.log("[MCP] Tool call completed:", result);
+        return result;
+      } catch (error) {
+        console.error("[MCP] Tool call failed:", error);
+        throw error;
+      }
+    },
+    [makeRequest]
+  );
+
+  const listTools = useCallback(async () => {
+    if (!mcpClient) {
+      throw new Error("Not connected to MCP server");
+    }
+    const result = await makeRequest(
+      { method: "tools/list" },
       ListToolsResultSchema
     );
+    return result.tools;
+  }, [mcpClient, makeRequest]);
 
-    const tools = response.tools || [];
-    setConnectionState((prev) => ({ ...prev, tools }));
-    return tools;
-  }, [makeRequest]);
-
-  const listResources = useCallback(async (): Promise<Resource[]> => {
-    const response = await makeRequest(
-      { method: "resources/list", params: {} },
+  const listResources = useCallback(async () => {
+    if (!mcpClient) {
+      throw new Error("Not connected to MCP server");
+    }
+    const result = await makeRequest(
+      { method: "resources/list" },
       ListResourcesResultSchema
     );
+    return result.resources;
+  }, [mcpClient, makeRequest]);
 
-    const resources = response.resources || [];
-    setConnectionState((prev) => ({ ...prev, resources }));
-    return resources;
-  }, [makeRequest]);
-
-  const listResourceTemplates = useCallback(async (): Promise<
-    ResourceTemplate[]
-  > => {
-    const response = await makeRequest(
-      { method: "resources/templates/list", params: {} },
+  const listResourceTemplates = useCallback(async () => {
+    if (!mcpClient) {
+      throw new Error("Not connected to MCP server");
+    }
+    const result = await makeRequest(
+      { method: "resources/templates/list" },
       ListResourceTemplatesResultSchema
     );
+    return result.resourceTemplates;
+  }, [mcpClient, makeRequest]);
 
-    const resourceTemplates = response.resourceTemplates || [];
-    setConnectionState((prev) => ({ ...prev, resourceTemplates }));
-    return resourceTemplates;
-  }, [makeRequest]);
-
-  const listPrompts = useCallback(async (): Promise<Prompt[]> => {
-    const response = await makeRequest(
-      { method: "prompts/list", params: {} },
+  const listPrompts = useCallback(async () => {
+    if (!mcpClient) {
+      throw new Error("Not connected to MCP server");
+    }
+    const result = await makeRequest(
+      { method: "prompts/list" },
       ListPromptsResultSchema
     );
-
-    const prompts = response.prompts || [];
-    setConnectionState((prev) => ({ ...prev, prompts }));
-    return prompts;
-  }, [makeRequest]);
+    return result.prompts;
+  }, [mcpClient, makeRequest]);
 
   const readResource = useCallback(
     async (uri: string) => {
-      return await makeRequest(
+      if (!mcpClient) {
+        throw new Error("Not connected to MCP server");
+      }
+      const result = await makeRequest(
         { method: "resources/read", params: { uri } },
         ReadResourceResultSchema
       );
+      return result;
     },
-    [makeRequest]
+    [mcpClient, makeRequest]
   );
 
   const getPrompt = useCallback(
     async (name: string, args: Record<string, string> = {}) => {
-      return await makeRequest(
+      if (!mcpClient) {
+        throw new Error("Not connected to MCP server");
+      }
+      const result = await makeRequest(
         { method: "prompts/get", params: { name, arguments: args } },
         GetPromptResultSchema
       );
+      return result;
     },
-    [makeRequest]
-  );
-
-  const callTool = useCallback(
-    async (name: string, args: Record<string, unknown>) => {
-      return await makeRequest(
-        { method: "tools/call", params: { name, arguments: args } },
-        CallToolResultSchema
-      );
-    },
-    [makeRequest]
+    [mcpClient, makeRequest]
   );
 
   const handleCompletion = useCallback(
@@ -589,59 +551,40 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         | { type: "ref/prompt"; name: string },
       argName: string,
       value: string,
-      context?: Record<string, string>,
+      context: Record<string, string> = {},
       signal?: AbortSignal
     ): Promise<string[]> => {
-      if (!mcpClient || !completionsSupported) {
-        return [];
+      if (!mcpClient) {
+        throw new Error("Not connected to MCP server");
       }
 
-      const request: ClientRequest = {
-        method: "completion/complete",
-        params: {
-          ref,
-          argument: {
-            name: argName,
-            value,
-          },
-        },
-      };
-
-      if (context) {
-        (request.params as any).context = {
-          arguments: context,
-        };
+      if (!completionsSupported) {
+        throw new Error("Completions not supported by this server");
       }
 
       try {
-        const response = await makeRequest(request, CompleteResultSchema);
-        return response?.completion.values || [];
-      } catch (e: unknown) {
-        // Disable completions silently if the server doesn't support them
-        if (e instanceof McpError && e.code === ErrorCode.MethodNotFound) {
-          setCompletionsSupported(false);
-          return [];
-        }
-        throw e;
+        const result = await makeRequest(
+          {
+            method: "completion/complete",
+            params: {
+              ref,
+              argument: {
+                name: argName,
+                value,
+              },
+              context,
+            },
+          },
+          CompleteResultSchema
+        );
+        return result.completions as string[];
+      } catch (error) {
+        console.error("[MCP] Completion error:", error);
+        throw error;
       }
     },
-    [mcpClient, completionsSupported, makeRequest]
+    [mcpClient, makeRequest, completionsSupported]
   );
-
-  // Cleanup on unmount only
-  useEffect(() => {
-    return () => {
-      isUnmountingRef.current = true;
-      if (mcpClientRef.current) {
-        console.log("[MCP] Component unmounting, disconnecting...");
-        void (async () => {
-          try {
-            await mcpClientRef.current?.close();
-          } catch {}
-        })();
-      }
-    };
-  }, []);
 
   return {
     connectionState,
@@ -658,6 +601,8 @@ export function useMCPConnection(): UseMCPConnectionReturn {
     handleCompletion,
     completionsSupported,
     pendingElicitations,
+    currentElicitation,
+    setCurrentElicitation,
     resolveElicitation,
   };
 }

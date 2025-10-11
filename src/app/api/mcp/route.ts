@@ -23,6 +23,33 @@ function mcpProxy({
   let reportedServerSession = false;
 
   transportToClient.onmessage = (message) => {
+    // Enhanced logging for createSwap requests
+    if (
+      "method" in message &&
+      message.method === "tools/call" &&
+      "params" in message &&
+      (message.params as any)?.name === "createSwap"
+    ) {
+      console.log("[MCP Proxy] *** CREATE SWAP REQUEST FROM CLIENT ***");
+      console.log(
+        "[MCP Proxy] Full createSwap client request:",
+        JSON.stringify(message, null, 2)
+      );
+      console.log(
+        "[MCP Proxy] createSwap arguments:",
+        (message.params as any)?.arguments
+      );
+    }
+
+    // Log all client requests for debugging
+    console.log("[MCP Proxy] Message from client to server:", {
+      method: "method" in message ? message.method : "unknown",
+      hasParams: "params" in message,
+      hasId: "id" in message,
+      messageSize: JSON.stringify(message).length,
+      timestamp: new Date().toISOString(),
+    });
+
     transportToServer.send(message).catch((error) => {
       console.error("[MCP Proxy] Error sending to server:", error);
       // Send error response back to client if it was a request
@@ -57,7 +84,87 @@ function mcpProxy({
       );
       reportedServerSession = true;
     }
-    transportToClient.send(message).catch(console.error);
+
+    // Enhanced logging for createSwap responses
+    if (
+      "method" in message &&
+      message.method === "tools/call" &&
+      "params" in message &&
+      (message.params as any)?.name === "createSwap"
+    ) {
+      console.log("[MCP Proxy] *** CREATE SWAP RESPONSE FROM SERVER ***");
+      console.log(
+        "[MCP Proxy] Full createSwap server response:",
+        JSON.stringify(message, null, 2)
+      );
+      console.log(
+        "[MCP Proxy] createSwap result:",
+        "result" in message ? message.result : "none"
+      );
+      console.log("[MCP Proxy] createSwap params:", message.params);
+      console.log(
+        "[MCP Proxy] createSwap error:",
+        "error" in message ? message.error : "none"
+      );
+
+      // Check for elicitation patterns in the response
+      const hasElicitationPatterns =
+        (message.params &&
+          (message.params as any).message &&
+          (message.params as any).requestedSchema) ||
+        ("result" in message &&
+          message.result &&
+          (message.result as any).message &&
+          (message.result as any).requestedSchema) ||
+        (message.params &&
+          (message.params as any)._meta &&
+          (message.params as any)._meta.progressToken) ||
+        JSON.stringify(message).toLowerCase().includes("elicit");
+
+      console.log(
+        "[MCP Proxy] createSwap elicitation patterns detected:",
+        hasElicitationPatterns
+      );
+      if (hasElicitationPatterns) {
+        console.log(
+          "[MCP Proxy] *** ELICITATION DETECTED IN CREATE SWAP RESPONSE ***"
+        );
+      }
+    }
+
+    // Special handling for elicitation/create notifications
+    if ("method" in message && message.method === "elicitation/create") {
+      console.log(
+        "[MCP Proxy] *** ELICITATION/CREATE NOTIFICATION FROM SERVER ***"
+      );
+      console.log(
+        "[MCP Proxy] Full elicitation notification:",
+        JSON.stringify(message, null, 2)
+      );
+      console.log(
+        "[MCP Proxy] Elicitation message:",
+        (message.params as any)?.message
+      );
+      console.log(
+        "[MCP Proxy] Elicitation schema:",
+        (message.params as any)?.requestedSchema
+      );
+      console.log("[MCP Proxy] *** FORWARDING ELICITATION TO CLIENT ***");
+    }
+
+    // Log all messages for debugging
+    console.log("[MCP Proxy] Message from server to client:", {
+      method: "method" in message ? message.method : "unknown",
+      hasResult: "result" in message,
+      hasError: "error" in message,
+      hasParams: "params" in message,
+      messageSize: JSON.stringify(message).length,
+      timestamp: new Date().toISOString(),
+    });
+
+    transportToClient.send(message).catch((error) => {
+      console.error("[MCP Proxy] Error sending message to client:", error);
+    });
   };
 
   transportToClient.onclose = () => {
@@ -68,8 +175,17 @@ function mcpProxy({
 
   transportToServer.onclose = () => {
     if (transportToClientClosed) return;
-    transportToServerClosed = true;
-    transportToClient.close().catch(console.error);
+    console.log(
+      "[MCP Proxy] Server transport closed, but keeping client connection alive for elicitation"
+    );
+    // Don't immediately close the client connection
+    // Give time for any pending elicitation messages to be processed
+    setTimeout(() => {
+      if (!transportToClientClosed) {
+        transportToClientClosed = true;
+        transportToClient.close().catch(console.error);
+      }
+    }, 2000); // Wait 2 seconds before closing
   };
 
   transportToClient.onerror = (error) => {
@@ -78,6 +194,11 @@ function mcpProxy({
 
   transportToServer.onerror = (error) => {
     console.error("[MCP Proxy] Server transport error:", error);
+    // Don't close the connection immediately on server errors
+    // The elicitation message might still be in transit
+    console.log(
+      "[MCP Proxy] Server transport error occurred, but keeping connection alive for elicitation"
+    );
   };
 }
 
@@ -253,6 +374,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Handle the request
         const body = await request.text();
         const parsedBody = body ? JSON.parse(body) : undefined;
+
+        // Enhanced logging for createSwap requests
+        if (
+          parsedBody &&
+          parsedBody.method === "tools/call" &&
+          parsedBody.params?.name === "createSwap"
+        ) {
+          console.log("[MCP API] *** CREATE SWAP REQUEST HANDLED ***");
+          console.log(
+            "[MCP API] Full createSwap request body:",
+            JSON.stringify(parsedBody, null, 2)
+          );
+          console.log(
+            "[MCP API] createSwap arguments:",
+            parsedBody.params?.arguments
+          );
+        }
+
+        // Log all requests for debugging
+        console.log("[MCP API] Handling request:", {
+          method: parsedBody?.method,
+          hasParams: !!parsedBody?.params,
+          hasId: !!parsedBody?.id,
+          bodySize: body.length,
+          timestamp: new Date().toISOString(),
+        });
+
         const mockReq = createExpressMocks(request, body, parsedBody);
 
         return new Promise((resolve) => {

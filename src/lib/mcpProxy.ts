@@ -17,6 +17,25 @@ export function mcpProxy({
   // Forward messages from client to server
   transportToClient.onmessage = async (message: JSONRPCMessage) => {
     try {
+      // Enhanced logging for createSwap requests
+      if (
+        "method" in message &&
+        message.method === "tools/call" &&
+        (message as any).params?.name === "createSwap"
+      ) {
+        console.log(
+          "[MCP Proxy] *** CREATE SWAP REQUEST (Client -> Server) ***"
+        );
+        console.log(
+          "[MCP Proxy] Full createSwap request:",
+          JSON.stringify(message, null, 2)
+        );
+        console.log(
+          "[MCP Proxy] createSwap arguments:",
+          (message as any).params?.arguments
+        );
+      }
+
       console.log(
         "[MCP Proxy] Client -> Server:",
         JSON.stringify(message, null, 2)
@@ -30,6 +49,46 @@ export function mcpProxy({
   // Forward messages from server to client
   transportToServer.onmessage = async (message: JSONRPCMessage) => {
     try {
+      // Enhanced logging for createSwap responses
+      if (
+        "method" in message &&
+        message.method === "tools/call" &&
+        (message as any).params?.name === "createSwap"
+      ) {
+        console.log(
+          "[MCP Proxy] *** CREATE SWAP RESPONSE (Server -> Client) ***"
+        );
+        console.log(
+          "[MCP Proxy] Full createSwap response:",
+          JSON.stringify(message, null, 2)
+        );
+        console.log("[MCP Proxy] createSwap result:", (message as any).result);
+        console.log("[MCP Proxy] createSwap error:", (message as any).error);
+
+        // Check for elicitation patterns in the response
+        const hasElicitationPatterns =
+          ((message as any).params &&
+            (message as any).params.message &&
+            (message as any).params.requestedSchema) ||
+          ((message as any).result &&
+            (message as any).result.message &&
+            (message as any).result.requestedSchema) ||
+          ((message as any).params &&
+            (message as any).params._meta &&
+            (message as any).params._meta.progressToken) ||
+          JSON.stringify(message).toLowerCase().includes("elicit");
+
+        console.log(
+          "[MCP Proxy] createSwap elicitation patterns detected:",
+          hasElicitationPatterns
+        );
+        if (hasElicitationPatterns) {
+          console.log(
+            "[MCP Proxy] *** ELICITATION DETECTED IN CREATE SWAP RESPONSE ***"
+          );
+        }
+      }
+
       console.log(
         "[MCP Proxy] Server -> Client:",
         JSON.stringify(message, null, 2)

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ProviderWrapper } from "@/components/ProviderWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,11 +27,32 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" style={{ colorScheme: 'dark' }}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Force dark mode immediately
+              document.documentElement.className = 'dark';
+              document.documentElement.style.colorScheme = 'dark';
+              // Override any theme detection
+              if (window.matchMedia) {
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+                mediaQuery.addEventListener('change', () => {
+                  document.documentElement.className = 'dark';
+                  document.documentElement.style.colorScheme = 'dark';
+                });
+              }
+            `,
+          }}
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased dark`}
       >
-        {children}
+        <ProviderWrapper>
+          {children}
+        </ProviderWrapper>
       </body>
     </html>
   );

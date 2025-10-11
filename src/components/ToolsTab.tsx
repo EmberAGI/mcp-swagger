@@ -13,6 +13,7 @@ import { Code, Play, FileText, ChevronDown, ChevronRight, CheckCircle2, AlertCir
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import JsonView from "./JsonView";
+import { ToolResultRenderer } from "./ToolResultRenderer";
 
 interface ToolsTabProps {
     tools: Tool[];
@@ -390,25 +391,14 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                                                     </Button>
                                                 </div>
 
-                                                {error && (
-                                                    <Alert variant="destructive">
-                                                        <AlertCircle className="h-4 w-4" />
-                                                        <AlertDescription>{error}</AlertDescription>
-                                                    </Alert>
-                                                )}
-
-                                                {result && (
-                                                    <Card>
-                                                        <CardHeader>
-                                                            <CardTitle className="flex items-center gap-2">
-                                                                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                                                Result
-                                                            </CardTitle>
-                                                        </CardHeader>
-                                                        <CardContent>
-                                                            <JsonView data={result} />
-                                                        </CardContent>
-                                                    </Card>
+                                                {/* Tool Result Renderer with toggle */}
+                                                {(error || result || isLoading) && (
+                                                    <ToolResultRenderer
+                                                        toolName={toolName}
+                                                        result={result}
+                                                        isLoading={isLoading}
+                                                        error={error}
+                                                    />
                                                 )}
                                             </div>
                                         </CardContent>

@@ -51,6 +51,13 @@ const ElicitationModal = ({
     const schema = request?.request.requestedSchema as JsonSchema;
     const isOpen = request !== null;
 
+    console.log("[ElicitationModal] Render check:", {
+        hasRequest: !!request,
+        isOpen,
+        requestId: request?.id,
+        message: request?.request?.message
+    });
+
     useEffect(() => {
         if (!request) return;
 
@@ -214,14 +221,35 @@ const ElicitationModal = ({
         );
     };
 
-    if (!request) return null;
+    if (!request) {
+        console.log("[ElicitationModal] No request, returning null");
+        return null;
+    }
 
+    // Add a simple fallback for debugging
+    if (isOpen && request) {
+        console.log("[ElicitationModal] Modal should be visible now!");
+    }
+
+    console.log("[ElicitationModal] Rendering modal for request:", request.id);
+    console.log("[ElicitationModal] Request details:", {
+        id: request.id,
+        message: request.request.message,
+        hasSchema: !!request.request.requestedSchema,
+        schema: request.request.requestedSchema
+    });
     const schemaTitle = schema?.title || "Information Request";
     const schemaDescription = schema?.description;
 
+    console.log("[ElicitationModal] Dialog state:", {
+        isOpen,
+        request: !!request,
+        willRender: isOpen && request
+    });
+
     return (
         <Dialog open={isOpen} onOpenChange={() => handleCancel()}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" style={{ zIndex: 9999 }}>
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <HelpCircle className="h-5 w-5 text-blue-500" />
