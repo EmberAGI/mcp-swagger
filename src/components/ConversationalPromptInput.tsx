@@ -455,7 +455,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                             onClick={handleSubmit}
                             disabled={!isSubmitReady() || isExecuting}
                             size="sm"
-                            className="h-9 min-w-[100px]"
+                            className="h-9 min-w-[100px] bg-blue-500 hover:bg-blue-600 text-white"
                         >
                             {isExecuting ? (
                                 <>
@@ -528,7 +528,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600 text-white"
+                                            className="h-8 w-8 p-0 bg-blue-500 hover:bg-blue-600 text-white"
                                         >
                                             <Sparkles className="h-4 w-4" />
                                         </Button>
@@ -574,7 +574,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                             onClick={handleSubmit}
                             disabled={!isSubmitReady()}
                             size="default"
-                            className="h-12 min-w-[100px]"
+                            className="h-12 min-w-[100px] bg-blue-500 hover:bg-blue-600 text-white"
                         >
                             <Send className="h-5 w-5 mr-2" />
                             Send

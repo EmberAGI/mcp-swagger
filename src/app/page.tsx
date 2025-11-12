@@ -1,35 +1,37 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ServerSelector } from "@/components/ServerSelector";
-import { ToolsTab } from "@/components/ToolsTab";
-import { ResourcesTab } from "@/components/ResourcesTab";
-import { ResourceTemplatesTab } from "@/components/ResourceTemplatesTab";
-import { PromptsTab } from "@/components/PromptsTab";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Code, Database, FileText, MessageSquare, Settings, Activity, Lock, ChevronDown, Send, History, HelpCircle } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMCPConnection, PendingElicitationRequest } from "@/lib/hooks/useMCPConnection";
-import { MCPServer, MCPServerConfig } from "@/lib/types/mcp";
+import { MCPServer } from "@/lib/types/mcp";
 import { loadServerConfig } from "@/config/servers";
-import ElicitationModal from "@/components/ElicitationModal";
+import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { Prompt } from "@modelcontextprotocol/sdk/types.js";
+import { ResourceTemplate } from "@modelcontextprotocol/sdk/types.js";
+import { HeroSection } from "@/components/HeroSection";
+import { CategoryFilters, CategoryFilter } from "@/components/CategoryFilters";
+import { FilteredCardsSection } from "@/components/FilteredCardsSection";
+import { ExecutionSection } from "@/components/ExecutionSection";
+import { Footer } from "@/components/Footer";
 import ConversationalPromptInput from "@/components/ConversationalPromptInput";
-import PromptDemoCard from "@/components/PromptDemoCard";
+import { SafeConnectButton } from "@/components/SafeConnectButton";
 import { PromptTemplate } from "@/config/prompts";
-import Image from "next/image";
+import ElicitationModal from "@/components/ElicitationModal";
+import { ServerSelector } from "@/components/ServerSelector";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown, Settings, HelpCircle } from "lucide-react";
+
+type SelectedItem =
+  | { type: "tool"; item: Tool }
+  | { type: "prompt"; item: Prompt }
+  | { type: "template"; item: ResourceTemplate }
+  | null;
 
 export default function Home() {
   const [showServerConfig, setShowServerConfig] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [customRequest, setCustomRequest] = useState("{\n  \"method\": \"\",\n  \"params\": {}\n}");
-  const [requestHistory, setRequestHistory] = useState<Array<{ id: string; timestamp: Date; request: any; response: any; error?: string }>>([]);
-  const [isSending, setIsSending] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<CategoryFilter>("all");
+  const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
   const [currentElicitation, setCurrentElicitation] = useState<PendingElicitationRequest | null>(null);
 
   const {
@@ -39,7 +41,6 @@ export default function Home() {
     readResource,
     getPrompt,
     callTool,
-    makeRequest,
     handleCompletion,
     completionsSupported,
     pendingElicitations,
@@ -82,36 +83,15 @@ export default function Home() {
 
   const handleConnect = async (server: MCPServer) => {
     await connect(server);
-    // The lists are now fetched automatically in the connect function
   };
 
-  const addToHistory = (request: any, response: any, error?: string) => {
-    const entry = { id: Date.now().toString(), timestamp: new Date(), request, response, error };
-    setRequestHistory(prev => [entry, ...prev].slice(0, 50));
-  };
-
-  const handleCustomRequest = async () => {
-    setIsSending(true);
-    try {
-      const request = JSON.parse(customRequest);
-      const response = await makeRequest(request, {} as any);
-      addToHistory(request, response);
-    } catch (error) {
-      let request;
-      try {
-        request = JSON.parse(customRequest);
-      } catch {
-        request = { error: "Invalid JSON" };
-      }
-      addToHistory(request, null, error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsSending(false);
-    }
+  const handlePromptSubmit = async (prompt: string, template?: PromptTemplate) => {
+    console.log("Prompt submitted:", prompt);
+    console.log("Template used:", template);
   };
 
   const handleElicitationClose = () => {
     setCurrentElicitation(null);
-    // If there are more pending requests, show the next one
     if (pendingElicitations.length > 1) {
       const nextElicitation = pendingElicitations.find(e => e.id !== currentElicitation?.id);
       if (nextElicitation) {
@@ -120,56 +100,32 @@ export default function Home() {
     }
   };
 
-  const handlePromptSubmit = async (prompt: string, template?: PromptTemplate) => {
-    console.log("Prompt submitted:", prompt);
-    console.log("Template used:", template);
+  const { tools, resources, prompts, resourceTemplates } = connectionState;
 
-    // Add to history for tracking
-    addToHistory(
-      {
-        method: "prompt/submit",
-        template: template?.name || "custom",
-        prompt
-      },
-      { message: "Prompt submitted successfully" }
-    );
-
-    // Here you could process the prompt further:
-    // - Send to a specific prompt endpoint
-    // - Use it to call tools with parsed parameters
-    // - Store it for later use
-    // For now, we'll just log it and add to history
-  };
-
-  const renderOverview = () => {
-    if (connectionState.status !== "connected") {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <BookOpen className="h-16 w-16 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-semibold mb-2">Connect to an MCP Server</h3>
-          <p className="text-muted-foreground max-w-md">
-            Select and connect to an MCP server to start exploring its capabilities,
-            documentation, and test its tools, resources, and prompts.
-          </p>
+  return (
+    <div className="min-h-screen bg-[#1a1a1a]">
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Hero Section */}
+        <div className="flex justify-center">
+          <HeroSection
+            toolsCount={tools.length}
+            resourcesCount={resourceTemplates.length}
+            promptsCount={prompts.length}
+          />
         </div>
-      );
-    }
 
-    const { capabilities, tools, resources, prompts } = connectionState;
+        {/* Filter Buttons and Connect Wallet Button */}
+        <div className="mt-8 flex items-center justify-between gap-4">
+          <CategoryFilters activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+          <SafeConnectButton />
+        </div>
 
-    return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Server Overview</h2>
-          <p className="text-muted-foreground mb-4">
-            Connected to {connectionState.server?.name}. Explore the available capabilities below.
-          </p>
-
-          {/* Conversational Prompt Input */}
+        {/* Magic Input Box */}
+        <div className="mt-6">
           <ConversationalPromptInput
             onSubmit={handlePromptSubmit}
             placeholder="Ask something or type a command... (try: swap, long, supply, borrow)"
-            className="mb-6"
             onCallTool={callTool}
             onGetPrompt={getPrompt}
             handleCompletion={handleCompletion}
@@ -178,427 +134,153 @@ export default function Home() {
           />
         </div>
 
-        {/* Demo Card for Prompt Input */}
-        <PromptDemoCard />
+        {/* Filtered Cards Section */}
+        {connectionState.status === "connected" && (
+          <FilteredCardsSection
+            tools={tools}
+            prompts={prompts}
+            resourceTemplates={resourceTemplates}
+            activeFilter={activeFilter}
+            onToolSelect={(tool) => setSelectedItem({ type: "tool", item: tool })}
+            onPromptSelect={(prompt) => setSelectedItem({ type: "prompt", item: prompt })}
+            onTemplateSelect={(template) => setSelectedItem({ type: "template", item: template })}
+          />
+        )}
 
-        {/* Status Cards moved to bottom */}
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="bg-muted/20">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Tools</CardTitle>
-              <Code className="h-3 w-3 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-lg font-semibold text-muted-foreground">{tools.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {capabilities?.tools ? "Available" : "Not supported"}
-              </p>
-            </CardContent>
-          </Card>
+        {/* Execution Section */}
+        {selectedItem && connectionState.status === "connected" && (
+          <ExecutionSection
+            selectedItem={selectedItem}
+            tools={tools}
+            prompts={prompts}
+            resourceTemplates={resourceTemplates}
+            onCallTool={callTool}
+            onGetPrompt={getPrompt}
+            onReadResource={readResource}
+            isConnected={connectionState.status === "connected"}
+            handleCompletion={handleCompletion}
+            completionsSupported={completionsSupported}
+          />
+        )}
 
-          <Card className="bg-muted/20">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Resources</CardTitle>
-              <Database className="h-3 w-3 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-lg font-semibold text-muted-foreground">{resources.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {capabilities?.resources ? "Available" : "Not supported"}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-muted/20">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Prompts</CardTitle>
-              <MessageSquare className="h-3 w-3 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-lg font-semibold text-muted-foreground">{prompts.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {capabilities?.prompts ? "Available" : "Not supported"}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-muted/20">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Status</CardTitle>
-              <Activity className="h-3 w-3 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-lg font-semibold text-muted-foreground">
-                <Badge variant="secondary" className="text-xs">Online</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Connected via {connectionState.server?.transport}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#1a1a1a' }}>
-      <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: '#2a2a2a' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <Image src="/Logo (1).svg" alt="EmberAi Logo" width={32} height={32} />
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Image src="/name.svg" alt="EmberAi" width={144} height={25} />
-                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#FD6731', marginLeft: '0.5rem' }}>MCP Explorer</span>
-                </div>
-                <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.7)', marginTop: '0.25rem' }}>
-                  Model Context Protocol API Documentation & Testing Tool
-                </p>
-              </div>
+        {/* Metric Cards Below Execution Section */}
+        {connectionState.status === "connected" && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
+              <div className="text-3xl font-bold text-blue-400 mb-2">{tools.length}</div>
+              <div className="text-sm text-gray-400">Supported Tools</div>
             </div>
-            <button
-              onClick={() => setShowServerConfig(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: 'transparent',
-                border: '1px solid #FD6731',
-                borderRadius: '0.375rem',
-                color: '#FD6731',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(253, 103, 49, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <Settings style={{ width: '1rem', height: '1rem' }} />
-              Configure
-            </button>
+            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
+              <div className="text-3xl font-bold text-purple-400 mb-2">{resourceTemplates.length}</div>
+              <div className="text-sm text-gray-400">Resource Templates</div>
+            </div>
+            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
+              <div className="text-3xl font-bold text-cyan-400 mb-2">{prompts.length}</div>
+              <div className="text-sm text-gray-400">Available Prompts</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <Footer />
+
+      {/* Server Connection Section Below Footer */}
+      <div className="w-full border-t border-gray-800 bg-[#2a2a2a]">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center gap-2 cursor-pointer">
+                    <ChevronDown className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-medium text-gray-300">MCP Server Connection</span>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2">
+                  <ServerSelector
+                    connectionState={connectionState}
+                    onConnect={handleConnect}
+                    onDisconnect={disconnect}
+                    onConfigureServers={() => setShowServerConfig(true)}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+            <div className="flex items-center gap-3">
+              {pendingElicitations.length > 0 && (
+                <div className="flex items-center gap-2 bg-red-500/20 text-red-400 px-3 py-1 rounded-lg text-xs font-medium">
+                  <HelpCircle className="w-3 h-3" />
+                  {pendingElicitations.length} request{pendingElicitations.length > 1 ? 's' : ''} pending
+                </div>
+              )}
+              {connectionState.status === "connected" && (
+                <>
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Connected</Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => disconnect()}
+                    className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                  >
+                    Disconnect
+                  </Button>
+                </>
+              )}
+              {connectionState.status === "connecting" && (
+                <>
+                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Connecting...</Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => disconnect()}
+                    className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
+              {(connectionState.status === "disconnected" || connectionState.status === "error") && (
+                <>
+                  <Badge className={connectionState.status === "error" ? "bg-red-500/20 text-red-400 border-red-500/50" : "bg-gray-500/20 text-gray-400 border-gray-500/50"}>
+                    {connectionState.status === "error" ? "Error" : "Disconnected"}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const defaultServerId = serverConfig.defaultServer;
+                      const defaultServer = defaultServerId ? serverConfig.servers[defaultServerId] : undefined;
+                      if (defaultServer) {
+                        handleConnect(defaultServer as MCPServer);
+                      }
+                    }}
+                    className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                  >
+                    Connect
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowServerConfig(true)}
+                className="border-gray-600 text-gray-300 hover:bg-gray-700/50"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Configure
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 1rem' }}>
-        <Collapsible defaultOpen={false}>
-          <CollapsibleTrigger asChild>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              gap: '0.5rem',
-              fontSize: '1.125rem',
-              fontWeight: '600',
-              color: '#fff',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              marginBottom: '1rem'
-            }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transition: 'transform 0.2s', color: '#FD6731' }} />
-                MCP Server Connection
-              </span>
-              <span
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {pendingElicitations.length > 0 && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    backgroundColor: '#ef4444',
-                    color: 'white',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.75rem',
-                    fontWeight: '500'
-                  }}>
-                    <HelpCircle style={{ width: '0.875rem', height: '0.875rem' }} />
-                    {pendingElicitations.length} request{pendingElicitations.length > 1 ? 's' : ''} pending
-                  </div>
-                )}
-                {connectionState.status === "connected" && (
-                  <>
-                    <Badge variant="success">Connected</Badge>
-                    <button
-                      onClick={() => disconnect()}
-                      style={{
-                        padding: '0.375rem 0.75rem',
-                        backgroundColor: 'transparent',
-                        border: '1px solid #FD6731',
-                        borderRadius: '0.375rem',
-                        color: '#FD6731',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                )}
-                {connectionState.status === "connecting" && (
-                  <>
-                    <Badge variant="warning">Connecting...</Badge>
-                    <button
-                      onClick={() => disconnect()}
-                      style={{
-                        padding: '0.375rem 0.75rem',
-                        backgroundColor: 'transparent',
-                        border: '1px solid #FD6731',
-                        borderRadius: '0.375rem',
-                        color: '#FD6731',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-                {(connectionState.status === "disconnected" || connectionState.status === "error") && (
-                  <>
-                    <Badge variant={connectionState.status === "error" ? "destructive" : "outline"}>
-                      {connectionState.status === "error" ? "Error" : "Disconnected"}
-                    </Badge>
-                    <button
-                      onClick={() => {
-                        const defaultServerId = serverConfig.defaultServer;
-                        const defaultServer = defaultServerId ? serverConfig.servers[defaultServerId] : undefined;
-                        if (defaultServer) {
-                          handleConnect(defaultServer as MCPServer);
-                        }
-                      }}
-                      style={{
-                        padding: '0.375rem 0.75rem',
-                        backgroundColor: 'transparent',
-                        border: '1px solid #FD6731',
-                        borderRadius: '0.375rem',
-                        color: '#FD6731',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Connect
-                    </button>
-                  </>
-                )}
-              </span>
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent style={{ marginTop: '1rem' }}>
-            <ServerSelector
-              connectionState={connectionState}
-              onConnect={handleConnect}
-              onDisconnect={disconnect}
-              onConfigureServers={() => setShowServerConfig(true)}
-            />
-          </CollapsibleContent>
-        </Collapsible>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} style={{ width: '100%' }}>
-          <TabsList style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            width: '100%',
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            borderRadius: '0.5rem',
-            padding: '0.25rem'
-          }}>
-            <TabsTrigger value="overview">
-              <BookOpen className="w-4 h-4 mr-2" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="tools"
-              disabled={!connectionState.capabilities?.tools}
-            >
-              <Code className="w-4 h-4 mr-2" />
-              Tools
-            </TabsTrigger>
-            <TabsTrigger
-              value="resources"
-              disabled={!connectionState.capabilities?.resources}
-            >
-              <Database className="w-4 h-4 mr-2" />
-              Resources
-            </TabsTrigger>
-            <TabsTrigger
-              value="resourceTemplates"
-              disabled={!connectionState.capabilities?.resources}
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Templates
-            </TabsTrigger>
-            <TabsTrigger
-              value="prompts"
-              disabled={!connectionState.capabilities?.prompts}
-            >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Prompts
-            </TabsTrigger>
-            <TabsTrigger value="playground">
-              <Activity className="w-4 h-4 mr-2" />
-              Request
-            </TabsTrigger>
-            <TabsTrigger value="auth" disabled>
-              <Lock className="w-4 h-4 mr-2" />
-              Auth
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="mt-6">
-            {renderOverview()}
-          </TabsContent>
-
-          <TabsContent value="tools" className="mt-6">
-            <ToolsTab
-              tools={connectionState.tools}
-              onCallTool={callTool}
-              isConnected={connectionState.status === "connected"}
-            />
-          </TabsContent>
-
-          <TabsContent value="resources" className="mt-6">
-            <ResourcesTab
-              resources={connectionState.resources}
-              resourceTemplates={connectionState.resourceTemplates}
-              onReadResource={readResource}
-              isConnected={connectionState.status === "connected"}
-            />
-          </TabsContent>
-
-          <TabsContent value="resourceTemplates" className="mt-6">
-            <ResourceTemplatesTab
-              resourceTemplates={connectionState.resourceTemplates}
-              onReadResource={readResource}
-              isConnected={connectionState.status === "connected"}
-            />
-          </TabsContent>
-
-          <TabsContent value="prompts" className="mt-6">
-            <PromptsTab
-              prompts={connectionState.prompts}
-              onGetPrompt={getPrompt}
-              isConnected={connectionState.status === "connected"}
-              handleCompletion={handleCompletion}
-              completionsSupported={completionsSupported}
-            />
-          </TabsContent>
-
-          <TabsContent value="playground" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Custom Request</CardTitle>
-                    <CardDescription>Send raw MCP requests for advanced testing</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="custom-request">JSON Request</Label>
-                      <Textarea
-                        id="custom-request"
-                        rows={12}
-                        className="font-mono text-sm"
-                        value={customRequest}
-                        onChange={(e) => setCustomRequest(e.target.value)}
-                        placeholder="Enter your MCP request as JSON..."
-                      />
-                    </div>
-                    <Button
-                      onClick={handleCustomRequest}
-                      disabled={connectionState.status !== "connected" || isSending}
-                      className="w-full"
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      {isSending ? "Sending..." : "Send Request"}
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-              <div>
-                <Card className="h-fit">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <History className="w-4 h-4" />
-                      Request History
-                    </CardTitle>
-                    <CardDescription>Recent requests and responses</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2 max-h-96 overflow-y-auto">
-                    {requestHistory.length === 0 ? (
-                      <p className="text-muted-foreground text-sm text-center py-4">
-                        No requests yet. Start testing to see history.
-                      </p>
-                    ) : (
-                      requestHistory.map(item => (
-                        <div key={item.id} className="border rounded-lg p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Badge variant={item.error ? "destructive" : "success"}>
-                              custom
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {item.timestamp.toLocaleTimeString()}
-                            </span>
-                          </div>
-                          <div className="text-sm">
-                            <p className="font-medium">Request:</p>
-                            <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                              {JSON.stringify(item.request, null, 2)}
-                            </pre>
-                          </div>
-                          <div className="text-sm">
-                            <p className="font-medium">
-                              {item.error ? "Error:" : "Response:"}
-                            </p>
-                            <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                              {item.error || JSON.stringify(item.response, null, 2)}
-                            </pre>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-        </Tabs>
-
-        <Dialog open={showServerConfig} onOpenChange={setShowServerConfig}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Server Configuration</DialogTitle>
-            </DialogHeader>
-            <div className="p-4">
-              <p className="text-muted-foreground">Server configuration functionality has been removed.</p>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Elicitation Modal */}
-        <ElicitationModal
-          request={currentElicitation}
-          onResolve={resolveElicitation}
-          onClose={handleElicitationClose}
-        />
-      </div>
+      {/* Elicitation Modal */}
+      <ElicitationModal
+        request={currentElicitation}
+        onResolve={resolveElicitation}
+        onClose={handleElicitationClose}
+      />
     </div>
   );
 }

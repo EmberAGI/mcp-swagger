@@ -44,7 +44,7 @@ export function ProviderWrapper({ children }: { children: React.ReactNode }) {
                 <QueryClientProvider client={queryClient}>
                     <RainbowKitProvider
                         theme={darkTheme({
-                            accentColor: "#FD6731", // EmberAi orange color
+                            accentColor: "#3b82f6", // Bright blue
                             accentColorForeground: "#fff",
                         })}
                         initialChain={arbitrum}

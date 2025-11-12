@@ -1,0 +1,41 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Globe, TrendingUp, Droplets, ArrowLeftRight } from "lucide-react";
+
+export type CategoryFilter = "all" | "perpetuals" | "liquidity" | "swapping";
+
+interface CategoryFiltersProps {
+  activeFilter: CategoryFilter;
+  onFilterChange: (filter: CategoryFilter) => void;
+}
+
+export function CategoryFilters({ activeFilter, onFilterChange }: CategoryFiltersProps) {
+  const filters: { id: CategoryFilter; label: string; icon: React.ReactNode }[] = [
+    { id: "all", label: "All", icon: <Globe className="w-4 h-4" /> },
+    { id: "perpetuals", label: "Perpetuals", icon: <TrendingUp className="w-4 h-4" /> },
+    { id: "liquidity", label: "Liquidity", icon: <Droplets className="w-4 h-4" /> },
+    { id: "swapping", label: "Swaps", icon: <ArrowLeftRight className="w-4 h-4" /> },
+  ];
+
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {filters.map((filter) => (
+        <Button
+          key={filter.id}
+          variant={activeFilter === filter.id ? "default" : "outline"}
+          onClick={() => onFilterChange(filter.id)}
+          className={`flex items-center gap-2 ${
+            activeFilter === filter.id
+              ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
+              : "bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50"
+          }`}
+        >
+          {filter.icon}
+          {filter.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+

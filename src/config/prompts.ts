@@ -25,6 +25,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Swap tokens between different blockchains with intelligent routing and optimal exchange rates. Supports major tokens across multiple chains with customizable slippage protection.",
     triggerWords: ["swap", "exchange", "trade"],
+    category: "swapping",
     template:
       "Swap {fromToken} to {toToken} from {fromChain} to {toChain} using wallet {walletAddress}",
     parameters: [
@@ -72,6 +73,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Enter a leveraged long position in perpetual futures markets. Profit from upward price movements with customizable leverage up to 100x on supported assets like ETH, BTC, and major altcoins.",
     triggerWords: ["long", "perpetual", "leverage"],
+    category: "perpetuals",
     template:
       "Open long position on {market} using {payToken} as payment and {collateralToken} as collateral on {chain} with wallet {walletAddress}",
     parameters: [
@@ -123,6 +125,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Enter a leveraged short position in perpetual futures markets. Profit from downward price movements with customizable leverage up to 100x on supported assets like ETH, BTC, and major altcoins.",
     triggerWords: ["short", "perpetual", "leverage"],
+    category: "perpetuals",
     template:
       "Open short position on {market} using {payToken} as payment and {collateralToken} as collateral on {chain} with wallet {walletAddress}",
     parameters: [
@@ -174,6 +177,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Exit existing perpetual futures positions and cancel pending orders. Supports both market and limit orders with configurable position sizing and risk management.",
     triggerWords: ["close", "exit", "perpetual"],
+    category: "perpetuals",
     template:
       "Close {positionSide} position on {market} with {collateralToken} collateral using {providerName} from wallet {walletAddress}",
     parameters: [
@@ -233,6 +237,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Deposit tokens to earn interest and lending rewards across multiple DeFi protocols and chains",
     triggerWords: ["supply", "lend", "deposit"],
+    category: "lending",
     template:
       "Supply {supplyToken} on {supplyChain} using wallet {walletAddress}",
     parameters: [
@@ -268,6 +273,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Access credit by borrowing tokens against your collateral across multiple DeFi protocols and chains",
     triggerWords: ["borrow", "loan", "credit"],
+    category: "lending",
     template:
       "Borrow {borrowToken} on {borrowChain} using wallet {walletAddress}",
     parameters: [
@@ -303,6 +309,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Pay back outstanding debt and reduce borrowing positions across multiple DeFi protocols and chains",
     triggerWords: ["repay", "payback", "debt"],
+    category: "lending",
     template: "Repay {repayToken} on {repayChain} using wallet {walletAddress}",
     parameters: [
       {
@@ -336,6 +343,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Redeem your supplied tokens and earned interest from multiple DeFi lending protocols across different blockchains. Access your lending positions and claim accrued rewards.",
     triggerWords: ["withdraw", "redeem", "claim"],
+    category: "lending",
     template:
       "Withdraw {tokenToWithdraw} on {withdrawChain} using wallet {walletAddress}",
     parameters: [
@@ -371,6 +379,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Deposit token pairs into liquidity pools to earn trading fees and participate in DeFi protocols",
     triggerWords: ["liquidity", "pool", "LP"],
+    category: "liquidity",
     template:
       "Supply liquidity with {token0} and {token1} on {supplyChain} using wallet {walletAddress}",
     parameters: [
@@ -415,6 +424,7 @@ export const promptTemplates: PromptTemplate[] = [
     description:
       "Remove liquidity from DeFi pools and claim earned fees. Access your liquidity positions across different protocols and redeem your tokens.",
     triggerWords: ["remove", "withdraw", "liquidity"],
+    category: "liquidity",
     template:
       "Withdraw {token0}/{token1} liquidity from {providerName} using wallet {walletAddress}",
     parameters: [
