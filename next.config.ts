@@ -11,12 +11,21 @@ const nextConfig: NextConfig = {
     contentDispositionType: "attachment",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  // Ensure server binds to all interfaces for container deployments
-  experimental: {
-    serverComponentsExternalPackages: ["@modelcontextprotocol/sdk"],
-  },
+  // External packages for server components
+  serverExternalPackages: [
+    "@modelcontextprotocol/sdk",
+    "@walletconnect/core",
+    "@walletconnect/sign-client",
+    "@walletconnect/universal-provider",
+    "@walletconnect/ethereum-provider",
+    "@walletconnect/keyvaluestorage",
+  ],
   // Output configuration for production
   output: "standalone",
+  // Set turbopack root to silence lockfile warning
+  turbopack: {
+    root: process.cwd(),
+  },
 };
 
 export default nextConfig;

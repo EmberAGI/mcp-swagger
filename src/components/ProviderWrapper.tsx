@@ -5,24 +5,38 @@ import { darkTheme, getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rai
 import { cookieStorage, cookieToInitialState, createStorage, WagmiProvider } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 
 export function ProviderWrapper({ children }: { children: React.ReactNode }) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const config = useMemo(
-        () =>
-            getDefaultConfig({
+        () => {
+            if (typeof window === 'undefined') return null;
+            return getDefaultConfig({
                 appName: 'EmberAi MCP Explorer',
                 projectId: '4b49e5e63b9f6253943b470873b47208', // You should replace this with your own project ID from WalletConnect
                 chains: [arbitrum, mainnet, polygon, optimism, base],
-                ssr: true, // If your dApp uses server side rendering (SSR)
+                ssr: false, // Disable SSR since we're loading this client-side only
                 storage: createStorage({ storage: cookieStorage }),
-            }),
+            });
+        },
         []
     );
 
     const queryClient = useMemo(() => new QueryClient(), []);
-    const cookie = cookieStorage.getItem('wagmi.storage') || '';
-    const initialState = cookieToInitialState(config, cookie);
+    
+    const cookie = typeof window !== 'undefined' ? (cookieStorage.getItem('wagmi.storage') || '') : '';
+    const initialState = config ? cookieToInitialState(config, cookie) : undefined;
+
+    // Don't render providers until mounted (client-side only)
+    if (!mounted || !config) {
+        return <>{children}</>;
+    }
 
     return (
         <>
