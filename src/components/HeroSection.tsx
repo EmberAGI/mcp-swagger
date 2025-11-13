@@ -3,12 +3,12 @@
 import Image from "next/image";
 
 interface HeroSectionProps {
-  toolsCount: number;
-  resourcesCount: number;
-  promptsCount: number;
+  agentReadyActions: number;
+  supportedChains: number;
+  protocolCategories: number;
 }
 
-export function HeroSection({ toolsCount, resourcesCount, promptsCount }: HeroSectionProps) {
+export function HeroSection({ agentReadyActions, supportedChains, protocolCategories }: HeroSectionProps) {
   return (
     <div className="w-full py-12 px-4 text-center">
       <div className="max-w-4xl mx-auto">
@@ -24,27 +24,28 @@ export function HeroSection({ toolsCount, resourcesCount, promptsCount }: HeroSe
 
         {/* Hero Phrase */}
         <h1 className="text-4xl md:text-5xl font-semibold mb-4 bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-          The expand of Ember AI possibilities with MCP Swagger
+          See what Ember can do, for you and your agents
         </h1>
 
         {/* Subtext */}
         <p className="text-lg text-gray-300 mb-8 max-w-3xl">
-          Integration and testing for your MCP with our API documentation and testing tool. Streamline development, validate endpoints, and ensure robust performance.
+          Try out our MCP tools in the Playground.<br />
+          Act across DeFi with a single remote server.
         </p>
 
         {/* Metric Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
           <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
-            <div className="text-3xl font-bold text-blue-400 mb-2">{toolsCount}</div>
-            <div className="text-sm text-gray-400">Supported Tools</div>
+            <div className="text-3xl font-bold text-blue-400 mb-2">{agentReadyActions}</div>
+            <div className="text-sm text-gray-400">Agent-ready actions</div>
           </div>
           <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
-            <div className="text-3xl font-bold text-purple-400 mb-2">{resourcesCount}</div>
-            <div className="text-sm text-gray-400">Resource Templates</div>
+            <div className="text-3xl font-bold text-purple-400 mb-2">{supportedChains}</div>
+            <div className="text-sm text-gray-400">Supported Chains</div>
           </div>
           <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
-            <div className="text-3xl font-bold text-cyan-400 mb-2">{promptsCount}</div>
-            <div className="text-sm text-gray-400">Available Prompts</div>
+            <div className="text-3xl font-bold text-cyan-400 mb-2">{protocolCategories}</div>
+            <div className="text-sm text-gray-400">Protocol categories</div>
           </div>
         </div>
       </div>

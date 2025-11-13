@@ -58,8 +58,7 @@ Dockerfile
 README.md
 docs/
 
-# Lock files (keep package.json, exclude lock files if using npm in Docker)
-pnpm-lock.yaml
+# Lock files (keep package.json and pnpm-lock.yaml for pnpm, exclude yarn)
 yarn.lock
 
 # Other

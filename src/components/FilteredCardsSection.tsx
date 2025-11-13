@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Code, MessageSquare, FileText } from "lucide-react";
 import { getToolConfig, getCategoryConfig } from "@/config/tools";
 import { promptTemplates } from "@/config/prompts";
-import { getResourceTemplateCategory } from "@/config/resourceTemplates";
+import { getResourceTemplateCategory, getResourceTemplateConfig } from "@/config/resourceTemplates";
 import { CategoryFilter } from "./CategoryFilters";
 
 interface FilteredCardsSectionProps {
@@ -54,7 +54,8 @@ export function FilteredCardsSection({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-      {/* Tools Card */}
+      {/* Order: Tools, Prompts, Templates */}
+      {/* 1. Tools Card */}
       {filteredTools.length > 0 && (
         <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader>
@@ -109,7 +110,7 @@ export function FilteredCardsSection({
         </Card>
       )}
 
-      {/* Prompts Card */}
+      {/* 2. Prompts Card */}
       {filteredPrompts.length > 0 && (
         <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader>
@@ -143,11 +144,14 @@ export function FilteredCardsSection({
                         </div>
                       </div>
                     </div>
-                    {template?.category && (
-                      <Badge variant="outline" className="mt-2 text-xs">
-                        {template.category}
-                      </Badge>
-                    )}
+                    {template?.category && (() => {
+                      const categoryConfig = getCategoryConfig(template.category);
+                      return (
+                        <Badge variant="outline" className="mt-2 text-xs">
+                          {categoryConfig?.name || template.category}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -156,7 +160,7 @@ export function FilteredCardsSection({
         </Card>
       )}
 
-      {/* Templates Card */}
+      {/* 3. Templates Card */}
       {filteredTemplates.length > 0 && (
         <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader>
@@ -195,9 +199,14 @@ export function FilteredCardsSection({
                         )}
                       </div>
                     </div>
-                    <Badge variant="outline" className="mt-2 text-xs">
-                      {category}
-                    </Badge>
+                    {(() => {
+                      const categoryConfig = getCategoryConfig(category);
+                      return (
+                        <Badge variant="outline" className="mt-2 text-xs">
+                          {categoryConfig?.name || category}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                 );
               })}

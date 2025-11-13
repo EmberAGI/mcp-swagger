@@ -22,6 +22,7 @@ export interface MCPServer {
 export interface MCPServerConfig {
   servers: Record<string, MCPServer>;
   defaultServer?: string;
+  supportedChains?: number;
 }
 
 export interface ConnectionState {

@@ -15,6 +15,7 @@ import { Footer } from "@/components/Footer";
 import ConversationalPromptInput from "@/components/ConversationalPromptInput";
 import { SafeConnectButton } from "@/components/SafeConnectButton";
 import { PromptTemplate } from "@/config/prompts";
+import { toolCategories } from "@/config/tools";
 import ElicitationModal from "@/components/ElicitationModal";
 import { ServerSelector } from "@/components/ServerSelector";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +103,11 @@ export default function Home() {
 
   const { tools, resources, prompts, resourceTemplates } = connectionState;
 
+  // Calculate metrics for hero section
+  const agentReadyActions = tools.length + resourceTemplates.length + prompts.length;
+  const supportedChains = serverConfig.supportedChains || 3;
+  const protocolCategories = toolCategories.length;
+
   return (
     <div className="min-h-screen bg-[#1a1a1a]">
       {/* Main Content */}
@@ -109,9 +115,9 @@ export default function Home() {
         {/* Hero Section */}
         <div className="flex justify-center">
           <HeroSection
-            toolsCount={tools.length}
-            resourcesCount={resourceTemplates.length}
-            promptsCount={prompts.length}
+            agentReadyActions={agentReadyActions}
+            supportedChains={supportedChains}
+            protocolCategories={protocolCategories}
           />
         </div>
 
@@ -167,16 +173,16 @@ export default function Home() {
         {connectionState.status === "connected" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
             <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-blue-400 mb-2">{tools.length}</div>
-              <div className="text-sm text-gray-400">Supported Tools</div>
+              <div className="text-3xl font-bold text-blue-400 mb-2">{agentReadyActions}</div>
+              <div className="text-sm text-gray-400">Agent-ready actions</div>
             </div>
             <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-purple-400 mb-2">{resourceTemplates.length}</div>
-              <div className="text-sm text-gray-400">Resource Templates</div>
+              <div className="text-3xl font-bold text-purple-400 mb-2">{supportedChains}</div>
+              <div className="text-sm text-gray-400">Supported Chains</div>
             </div>
             <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-cyan-400 mb-2">{prompts.length}</div>
-              <div className="text-sm text-gray-400">Available Prompts</div>
+              <div className="text-3xl font-bold text-cyan-400 mb-2">{protocolCategories}</div>
+              <div className="text-sm text-gray-400">Protocol categories</div>
             </div>
           </div>
         )}

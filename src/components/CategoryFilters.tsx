@@ -1,9 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Globe, TrendingUp, Droplets, ArrowLeftRight } from "lucide-react";
+import { Globe, TrendingUp, Droplets, ArrowLeftRight, PiggyBank, Coins } from "lucide-react";
 
-export type CategoryFilter = "all" | "perpetuals" | "liquidity" | "swapping";
+export type CategoryFilter = "all" | "perpetuals" | "liquidity" | "swapping" | "lending" | "tokenized-yield";
 
 interface CategoryFiltersProps {
   activeFilter: CategoryFilter;
@@ -16,6 +16,8 @@ export function CategoryFilters({ activeFilter, onFilterChange }: CategoryFilter
     { id: "perpetuals", label: "Perpetuals", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "liquidity", label: "Liquidity", icon: <Droplets className="w-4 h-4" /> },
     { id: "swapping", label: "Swaps", icon: <ArrowLeftRight className="w-4 h-4" /> },
+    { id: "lending", label: "Lending", icon: <PiggyBank className="w-4 h-4" /> },
+    { id: "tokenized-yield", label: "Tokenized Yield", icon: <Coins className="w-4 h-4" /> },
   ];
 
   return (

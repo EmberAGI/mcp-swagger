@@ -51,8 +51,8 @@ export const toolCategories: ToolCategory[] = [
     color: "orange",
   },
   {
-    id: "pendle",
-    name: "Pendle",
+    id: "tokenized-yield",
+    name: "Tokenized Yield",
     description: "Yield tokenization and fixed-rate markets",
     color: "indigo",
   },

@@ -11,6 +11,7 @@ export const defaultServerConfig: MCPServerConfig = {
     },
   },
   defaultServer: "emberai",
+  supportedChains: 3,
 };
 
 export function loadServerConfig(): MCPServerConfig {
