@@ -29,8 +29,8 @@ export function CategoryFilters({ activeFilter, onFilterChange }: CategoryFilter
           onClick={() => onFilterChange(filter.id)}
           className={`flex items-center gap-2 ${
             activeFilter === filter.id
-              ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
-              : "bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50"
+              ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500"
+              : "bg-[#18181B] border-gray-700 text-gray-300 hover:bg-[#18181B]/80"
           }`}
         >
           {filter.icon}

@@ -379,7 +379,7 @@ export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
                                                     <Button
                                                         onClick={() => handleExecuteTool(tool)}
                                                         disabled={!isConnected || isLoading}
-                                                        className="bg-blue-500 hover:bg-blue-600 text-white"
+                                                        className="bg-orange-500 hover:bg-orange-600 text-white"
                                                     >
                                                         {isLoading ? (
                                                             <>Loading...</>

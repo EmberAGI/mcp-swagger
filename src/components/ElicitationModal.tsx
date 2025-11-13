@@ -252,7 +252,7 @@ const ElicitationModal = ({
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" style={{ zIndex: 9999 }}>
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <HelpCircle className="h-5 w-5 text-blue-500" />
+                        <HelpCircle className="h-5 w-5 text-orange-500" />
                         {schemaTitle}
                     </DialogTitle>
                     <DialogDescription>

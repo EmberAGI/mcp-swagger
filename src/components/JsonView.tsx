@@ -37,7 +37,7 @@ export default function JsonView({ data, className, defaultExpanded = true }: Js
         }
 
         if (typeof value === "number") {
-            return <span className="text-blue-500">{value}</span>;
+            return <span className="text-orange-500">{value}</span>;
         }
 
         if (typeof value === "string") {

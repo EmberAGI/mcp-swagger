@@ -215,7 +215,7 @@ export function PromptsTab({
                                         <Button
                                             variant="outline"
                                             onClick={() => clearCompletions()}
-                                            className="bg-blue-500 hover:bg-blue-600 text-white border-blue-500 hover:border-blue-600"
+                                            className="bg-orange-500 hover:bg-orange-600 text-white border-orange-500 hover:border-orange-600"
                                         >
                                             Clear Completions
                                         </Button>

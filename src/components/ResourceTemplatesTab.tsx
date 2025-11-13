@@ -131,7 +131,7 @@ export function ResourceTemplatesTab({
                                     ) : (
                                         <ChevronRight className="h-4 w-4" />
                                     )}
-                                    <FileText className="h-5 w-5 text-blue-500" />
+                                    <FileText className="h-5 w-5 text-orange-500" />
                                     <div>
                                         <CardTitle className="text-left">{template.name}</CardTitle>
                                         {template.description && (
@@ -235,7 +235,7 @@ export function ResourceTemplatesTab({
             <Card key={template.name}>
                 <CardHeader>
                     <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-blue-500" />
+                        <FileText className="h-5 w-5 text-orange-500" />
                         <div>
                             <CardTitle>{template.name}</CardTitle>
                             {template.description && (

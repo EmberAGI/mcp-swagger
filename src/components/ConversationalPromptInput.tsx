@@ -321,7 +321,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                     value={String(value)}
                     onValueChange={(val) => updateParameter(param.name, val, true)}
                 >
-                    <SelectTrigger className={`h-8 min-w-[120px] ${isActive ? 'ring-2 ring-blue-500' : ''}`}>
+                    <SelectTrigger className={`h-8 min-w-[120px] ${isActive ? 'ring-2 ring-orange-500' : ''}`}>
                         <SelectValue placeholder={param.placeholder} />
                     </SelectTrigger>
                     <SelectContent>
@@ -342,7 +342,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                     variant={value ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => updateParameter(param.name, !value, true)}
-                    className={`h-8 ${isActive ? 'ring-2 ring-blue-500' : ''}`}
+                    className={`h-8 ${isActive ? 'ring-2 ring-orange-500' : ''}`}
                 >
                     {value ? 'Yes' : 'No'}
                 </Button>
@@ -357,7 +357,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                     value={String(value)}
                     onChange={(e) => updateParameter(param.name, e.target.value)}
                     placeholder={param.placeholder}
-                    className={`h-8 min-w-[100px] ${isActive ? 'ring-2 ring-blue-500' : ''} ${completionError ? 'border-red-500' : ''}`}
+                    className={`h-8 min-w-[100px] ${isActive ? 'ring-2 ring-orange-500' : ''} ${completionError ? 'border-red-500' : ''}`}
                     onFocus={() => setActiveParameterIndex(index)}
                 />
 
@@ -368,7 +368,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                 )}
 
                 {paramCompletions.length > 0 && isActive && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-gray-800 border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-[#18181B] border rounded-md shadow-lg max-h-32 overflow-y-auto">
                         {paramCompletions.slice(0, 5).map((completion, idx) => (
                             <div
                                 key={idx}
@@ -397,8 +397,8 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
 
         return (
             <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-3 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border-2 border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center gap-2 text-base font-semibold text-blue-700 dark:text-blue-300">
+                <div className="flex flex-wrap items-center gap-3 p-4 bg-orange-50 dark:bg-orange-950/30 rounded-lg border-2 border-orange-200 dark:border-orange-800">
+                    <div className="flex items-center gap-2 text-base font-semibold text-orange-700 dark:text-orange-300">
                         <Wand2 className="h-5 w-5" />
                         {selectedTemplate.name}
                     </div>
@@ -455,7 +455,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                             onClick={handleSubmit}
                             disabled={!isSubmitReady() || isExecuting}
                             size="sm"
-                            className="h-9 min-w-[100px] bg-blue-500 hover:bg-blue-600 text-white"
+                            className="h-9 min-w-[100px] bg-orange-500 hover:bg-orange-600 text-white"
                         >
                             {isExecuting ? (
                                 <>
@@ -499,7 +499,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                                 onChange={(e) => handleInputChange(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder={placeholder}
-                                className="h-12 text-lg pr-24 border-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                className="h-12 text-lg pr-24 border-2 focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                             />
 
                             {ghostText && (
@@ -528,7 +528,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-8 w-8 p-0 bg-blue-500 hover:bg-blue-600 text-white"
+                                            className="h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600 text-white"
                                         >
                                             <Sparkles className="h-4 w-4" />
                                         </Button>
@@ -574,7 +574,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                             onClick={handleSubmit}
                             disabled={!isSubmitReady()}
                             size="default"
-                            className="h-12 min-w-[100px] bg-blue-500 hover:bg-blue-600 text-white"
+                            className="h-12 min-w-[100px] bg-orange-500 hover:bg-orange-600 text-white"
                         >
                             <Send className="h-5 w-5 mr-2" />
                             Send
@@ -591,7 +591,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                                             key={template.id}
                                             onClick={() => selectTemplate(template)}
                                             className={`flex items-center gap-2 p-2 rounded cursor-pointer ${index === selectedSuggestionIndex
-                                                ? 'bg-accent border border-blue-500'
+                                                ? 'bg-accent border border-orange-500'
                                                 : 'hover:bg-accent'
                                                 }`}
                                         >

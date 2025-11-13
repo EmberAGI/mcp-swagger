@@ -57,14 +57,14 @@ export function FilteredCardsSection({
       {/* Order: Tools, Prompts, Templates */}
       {/* 1. Tools Card */}
       {filteredTools.length > 0 && (
-        <Card className="bg-gray-800/50 border-gray-700">
+        <Card className="bg-[#18181B] border-gray-700">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Code className="w-5 h-5 text-blue-400" />
+                <Code className="w-5 h-5 text-orange-400" />
                 <CardTitle className="text-lg">Tools</CardTitle>
               </div>
-              <Badge variant="secondary" className="bg-blue-500/20 text-blue-400">
+              <Badge variant="secondary" className="bg-orange-500/20 text-orange-400">
                 {filteredTools.length}
               </Badge>
             </div>
@@ -78,7 +78,7 @@ export function FilteredCardsSection({
                   <div
                     key={tool.name}
                     onClick={() => onToolSelect(tool)}
-                    className="p-3 rounded-lg bg-gray-900/50 hover:bg-gray-900 cursor-pointer transition-colors border border-gray-700 hover:border-blue-500"
+                    className="p-3 rounded-lg bg-[#18181B] hover:bg-[#18181B]/80 cursor-pointer transition-colors border border-gray-700 hover:border-orange-500"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
@@ -112,14 +112,14 @@ export function FilteredCardsSection({
 
       {/* 2. Prompts Card */}
       {filteredPrompts.length > 0 && (
-        <Card className="bg-gray-800/50 border-gray-700">
+        <Card className="bg-[#18181B] border-gray-700">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-400" />
+                <MessageSquare className="w-5 h-5 text-orange-400" />
                 <CardTitle className="text-lg">Prompts</CardTitle>
               </div>
-              <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
+              <Badge variant="secondary" className="bg-orange-500/20 text-orange-400">
                 {filteredPrompts.length}
               </Badge>
             </div>
@@ -132,7 +132,7 @@ export function FilteredCardsSection({
                   <div
                     key={prompt.name}
                     onClick={() => onPromptSelect(prompt)}
-                    className="p-3 rounded-lg bg-gray-900/50 hover:bg-gray-900 cursor-pointer transition-colors border border-gray-700 hover:border-purple-500"
+                    className="p-3 rounded-lg bg-[#18181B] hover:bg-[#18181B]/80 cursor-pointer transition-colors border border-gray-700 hover:border-orange-500"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
@@ -162,14 +162,14 @@ export function FilteredCardsSection({
 
       {/* 3. Templates Card */}
       {filteredTemplates.length > 0 && (
-        <Card className="bg-gray-800/50 border-gray-700">
+        <Card className="bg-[#18181B] border-gray-700">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-cyan-400" />
+                <FileText className="w-5 h-5 text-orange-400" />
                 <CardTitle className="text-lg">Templates</CardTitle>
               </div>
-              <Badge variant="secondary" className="bg-cyan-500/20 text-cyan-400">
+              <Badge variant="secondary" className="bg-orange-500/20 text-orange-400">
                 {filteredTemplates.length}
               </Badge>
             </div>
@@ -182,7 +182,7 @@ export function FilteredCardsSection({
                   <div
                     key={template.name}
                     onClick={() => onTemplateSelect(template)}
-                    className="p-3 rounded-lg bg-gray-900/50 hover:bg-gray-900 cursor-pointer transition-colors border border-gray-700 hover:border-cyan-500"
+                    className="p-3 rounded-lg bg-[#18181B] hover:bg-[#18181B]/80 cursor-pointer transition-colors border border-gray-700 hover:border-orange-500"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">

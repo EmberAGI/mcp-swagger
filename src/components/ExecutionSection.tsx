@@ -62,7 +62,7 @@ export function ExecutionSection({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
       {/* Left Column: Parameters and Execution */}
-      <Card className="bg-gray-800/50 border-gray-700">
+      <Card className="bg-[#18181B] border-gray-700">
         <CardHeader>
           <CardTitle>
             {selectedItem.type === "tool" && "Tool Parameters"}
@@ -98,7 +98,7 @@ export function ExecutionSection({
       </Card>
 
       {/* Right Column: Results */}
-      <Card className="bg-gray-800/50 border-gray-700">
+      <Card className="bg-[#18181B] border-gray-700">
         <CardHeader>
           <CardTitle>Results</CardTitle>
         </CardHeader>

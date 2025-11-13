@@ -109,7 +109,7 @@ export default function Home() {
   const protocolCategories = toolCategories.length;
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a]">
+    <div className="min-h-screen bg-[#09090B]">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Hero Section */}
@@ -172,16 +172,16 @@ export default function Home() {
         {/* Metric Cards Below Execution Section */}
         {connectionState.status === "connected" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-blue-400 mb-2">{agentReadyActions}</div>
+            <div className="bg-[#18181B] border border-gray-700 rounded-lg p-6 text-center">
+              <div className="text-3xl font-bold text-orange-400 mb-2">{agentReadyActions}</div>
               <div className="text-sm text-gray-400">Agent-ready actions</div>
             </div>
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-purple-400 mb-2">{supportedChains}</div>
+            <div className="bg-[#18181B] border border-gray-700 rounded-lg p-6 text-center">
+              <div className="text-3xl font-bold text-orange-400 mb-2">{supportedChains}</div>
               <div className="text-sm text-gray-400">Supported Chains</div>
             </div>
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
-              <div className="text-3xl font-bold text-cyan-400 mb-2">{protocolCategories}</div>
+            <div className="bg-[#18181B] border border-gray-700 rounded-lg p-6 text-center">
+              <div className="text-3xl font-bold text-orange-400 mb-2">{protocolCategories}</div>
               <div className="text-sm text-gray-400">Protocol categories</div>
             </div>
           </div>
@@ -192,14 +192,14 @@ export default function Home() {
       <Footer />
 
       {/* Server Connection Section Below Footer */}
-      <div className="w-full border-t border-gray-800 bg-[#2a2a2a]">
+      <div className="w-full border-t border-gray-800 bg-[#09090B]">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <Collapsible defaultOpen={false}>
                 <CollapsibleTrigger asChild>
                   <div className="flex items-center gap-2 cursor-pointer">
-                    <ChevronDown className="w-4 h-4 text-blue-400" />
+                    <ChevronDown className="w-4 h-4 text-orange-400" />
                     <span className="text-sm font-medium text-gray-300">MCP Server Connection</span>
                   </div>
                 </CollapsibleTrigger>
@@ -227,7 +227,7 @@ export default function Home() {
                     variant="outline"
                     size="sm"
                     onClick={() => disconnect()}
-                    className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                    className="border-orange-500 text-orange-400 hover:bg-orange-500/10"
                   >
                     Disconnect
                   </Button>
@@ -240,7 +240,7 @@ export default function Home() {
                     variant="outline"
                     size="sm"
                     onClick={() => disconnect()}
-                    className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                    className="border-orange-500 text-orange-400 hover:bg-orange-500/10"
                   >
                     Cancel
                   </Button>
@@ -261,7 +261,7 @@ export default function Home() {
                         handleConnect(defaultServer as MCPServer);
                       }
                     }}
-                    className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                    className="border-orange-500 text-orange-400 hover:bg-orange-500/10"
                   >
                     Connect
                   </Button>

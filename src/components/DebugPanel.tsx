@@ -68,14 +68,14 @@ export function DebugPanel({ connectionState, onTestProxy }: DebugPanelProps) {
     };
 
     return (
-        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+        <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950">
             <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
                 <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                    <CardHeader className="cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <Bug className="h-5 w-5 text-blue-600" />
-                                <CardTitle className="text-blue-800 dark:text-blue-200">
+                                <Bug className="h-5 w-5 text-orange-600" />
+                                <CardTitle className="text-orange-800 dark:text-orange-200">
                                     Debug Panel
                                 </CardTitle>
                                 <Badge variant="outline" className="text-xs">
@@ -88,7 +88,7 @@ export function DebugPanel({ connectionState, onTestProxy }: DebugPanelProps) {
                                 <ChevronRight className="h-4 w-4" />
                             )}
                         </div>
-                        <CardDescription className="text-blue-700 dark:text-blue-300">
+                        <CardDescription className="text-orange-700 dark:text-orange-300">
                             Debug connection issues and test proxy functionality
                         </CardDescription>
                     </CardHeader>
@@ -98,11 +98,11 @@ export function DebugPanel({ connectionState, onTestProxy }: DebugPanelProps) {
                     <CardContent className="space-y-4">
                         <div className="space-y-3">
                             <div>
-                                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                                <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
                                     Connection Debug Info
                                 </h4>
-                                <div className="bg-blue-100 dark:bg-blue-900/50 p-3 rounded-md">
-                                    <pre className="text-xs text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
+                                <div className="bg-orange-100 dark:bg-orange-900/50 p-3 rounded-md">
+                                    <pre className="text-xs text-orange-800 dark:text-orange-200 whitespace-pre-wrap">
                                         {JSON.stringify(debugInfo, null, 2)}
                                     </pre>
                                     <Button
@@ -118,7 +118,7 @@ export function DebugPanel({ connectionState, onTestProxy }: DebugPanelProps) {
                             </div>
 
                             <div>
-                                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                                <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
                                     Test Proxy Connection
                                 </h4>
                                 <div className="space-y-2">
@@ -151,10 +151,10 @@ export function DebugPanel({ connectionState, onTestProxy }: DebugPanelProps) {
                             </div>
 
                             <div>
-                                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                                <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
                                     Common Issues & Solutions
                                 </h4>
-                                <div className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                                <div className="space-y-2 text-sm text-orange-700 dark:text-orange-300">
                                     <div className="flex items-start gap-2">
                                         <span className="font-medium">EventSource Error:</span>
                                         <span>Check if the MCP server URL is correct and responding</span>
