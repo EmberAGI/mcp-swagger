@@ -93,12 +93,6 @@ export function useMCPConnection(): UseMCPConnectionReturn {
 
   const [mcpClient, setMcpClient] = useState<Client | null>(null);
   const [completionsSupported, setCompletionsSupported] = useState(true);
-  
-  // Queue to serialize completion requests - only one at a time
-  const completionQueueRef = useRef<{
-    pending: boolean;
-    queue: Array<() => Promise<void>>;
-  }>({ pending: false, queue: [] });
   const [pendingElicitations, setPendingElicitations] = useState<
     PendingElicitationRequest[]
   >([]);
@@ -570,111 +564,43 @@ export function useMCPConnection(): UseMCPConnectionReturn {
         | { type: "ref/tool"; name: string },
       argName: string,
       value: string,
-      context: Record<string, string> = {},
+      context?: Record<string, string>,
       signal?: AbortSignal
     ): Promise<string[]> => {
-      if (!mcpClient) {
-        throw new Error("Not connected to MCP server");
+      if (!mcpClient || !completionsSupported) {
+        return [];
       }
 
-      if (!completionsSupported) {
-        throw new Error("Completions not supported by this server");
-      }
-
-      // Serialize completion requests through a queue to prevent concurrent requests
-      // which cause the "already finished loading" error in the MCP SDK
-      return new Promise((resolve, reject) => {
-        const requestId = `${Date.now()}-${Math.random()}`;
-        
-        const executeRequest = async () => {
-          const startTime = Date.now();
-          console.log(`[MCP Completion ${requestId}] Starting request:`, {
-            ref,
-            argName,
+      const request: ClientRequest = {
+        method: "completion/complete",
+        params: {
+          ref,
+          argument: {
+            name: argName,
             value,
-            queueLength: completionQueueRef.current.queue.length,
-            isPending: completionQueueRef.current.pending,
-          });
-          
-          try {
-            const result = await makeRequest(
-              {
-                method: "completion/complete",
-                params: {
-                  ref,
-                  argument: {
-                    name: argName,
-                    value,
-                  },
-                  context,
-                },
-              },
-              CompleteResultSchema
-            );
+          },
+        },
+      };
 
-            const duration = Date.now() - startTime;
-            console.log(`[MCP Completion ${requestId}] Success (${duration}ms):`, {
-              argName,
-              count: result.completions?.length || 0,
-              completions: result.completions?.slice(0, 3), // Show first 3
-              fullResult: result,
-            });
-
-            // Handle undefined completions
-            if (!result.completions) {
-              console.warn(`[MCP Completion ${requestId}] Server returned undefined completions`);
-              resolve([]);
-            } else {
-              resolve(result.completions as string[]);
-            }
-          } catch (error: any) {
-            const duration = Date.now() - startTime;
-            const errorMessage = error?.message || String(error);
-            
-            console.error(`[MCP Completion ${requestId}] Error (${duration}ms):`, {
-              error: errorMessage,
-              stack: error?.stack,
-              fullError: error,
-            });
-
-            // Handle the specific MCP SDK error about response already being loaded
-            if (errorMessage.includes("already finished loading") || 
-                errorMessage.includes("Request with the provided ID") ||
-                errorMessage.includes("failed to load response data")) {
-              console.warn(`[MCP Completion ${requestId}] Response reading error - this shouldn't happen with queue!`);
-              resolve([]);
-            } else {
-              reject(error);
-            }
-          } finally {
-            // Mark request as complete and process next in queue
-            console.log(`[MCP Completion ${requestId}] Finished, processing next in queue`);
-            completionQueueRef.current.pending = false;
-            const nextRequest = completionQueueRef.current.queue.shift();
-            if (nextRequest) {
-              console.log(`[MCP Completion] Starting next request from queue (${completionQueueRef.current.queue.length} remaining)`);
-              completionQueueRef.current.pending = true;
-              nextRequest().catch(console.error);
-            } else {
-              console.log(`[MCP Completion] Queue is empty`);
-            }
-          }
+      if (context) {
+        (request.params as any).context = {
+          arguments: context,
         };
+      }
 
-        // If no request is pending, execute immediately
-        if (!completionQueueRef.current.pending) {
-          console.log(`[MCP Completion ${requestId}] Executing immediately (queue empty)`);
-          completionQueueRef.current.pending = true;
-          executeRequest().catch(reject);
-        } else {
-          console.log(`[MCP Completion ${requestId}] Queuing request (replacing ${completionQueueRef.current.queue.length} queued requests)`);
-          // Clear queue and add this request as the only pending one
-          // This effectively cancels previous queued requests
-          completionQueueRef.current.queue = [executeRequest];
+      try {
+        const response = await makeRequest(request, CompleteResultSchema);
+        return response?.completion.values || [];
+      } catch (e: unknown) {
+        // Disable completions silently if the server doesn't support them
+        if (e instanceof McpError && e.code === ErrorCode.MethodNotFound) {
+          setCompletionsSupported(false);
+          return [];
         }
-      });
+        throw e;
+      }
     },
-    [mcpClient, makeRequest, completionsSupported]
+    [mcpClient, completionsSupported, makeRequest]
   );
 
   return {

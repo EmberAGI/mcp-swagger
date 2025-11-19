@@ -78,8 +78,6 @@ export function ExecutionSection({
               tools={[selectedItem.item]}
               onCallTool={onCallTool}
               isConnected={isConnected}
-              handleCompletion={handleCompletion}
-              completionsSupported={completionsSupported}
             />
           )}
           {selectedItem.type === "prompt" && (

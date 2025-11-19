@@ -41,7 +41,7 @@ export function useCompletionState(
     signal?: AbortSignal
   ) => Promise<string[]>,
   completionsSupported: boolean = true,
-  debounceMs: number = 500
+  debounceMs: number = 300
 ) {
   const [state, setState] = useState<{
     completions: Record<string, string[]>;
@@ -56,8 +56,10 @@ export function useCompletionState(
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const cleanup = useCallback(() => {
-    // Just clear the ref without aborting to avoid response reading issues
-    abortControllerRef.current = null;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   }, []);
 
   // Cleanup on unmount
@@ -86,11 +88,10 @@ export function useCompletionState(
           return;
         }
 
-        // Cancel previous request by simply tracking the latest one
-        // Don't use AbortController as it interferes with response reading
-        const requestId = Date.now();
         cleanup();
-        abortControllerRef.current = { requestId } as any;
+
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         setState((prev) => ({
           ...prev,
@@ -106,17 +107,15 @@ export function useCompletionState(
             context = contextCopy;
           }
 
-          // Pass undefined for signal to avoid abort issues
           const values = await handleCompletion(
             ref,
             argName,
             value,
             context,
-            undefined
+            abortController.signal
           );
 
-          // Only update state if this is still the latest request
-          if (abortControllerRef.current && (abortControllerRef.current as any).requestId === requestId) {
+          if (!abortController.signal.aborted) {
             setState((prev) => ({
               ...prev,
               completions: { ...prev.completions, [argName]: values },
@@ -125,33 +124,19 @@ export function useCompletionState(
             }));
           }
         } catch (error) {
-          // Check if this is a response reading error
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const isResponseError = errorMessage.includes("already finished loading") ||
-                                 errorMessage.includes("Request with the provided ID") ||
-                                 errorMessage.includes("failed to load response data");
-
-          // Only update state if this is still the latest request
-          if (abortControllerRef.current && (abortControllerRef.current as any).requestId === requestId) {
-            if (isResponseError) {
-              // Silently handle response reading errors
-              setState((prev) => ({
-                ...prev,
-                loading: { ...prev.loading, [argName]: false },
-                errors: { ...prev.errors, [argName]: null },
-              }));
-            } else {
-              // Only log and show real errors
-              console.error("Completion failed:", error);
-              setState((prev) => ({
-                ...prev,
-                loading: { ...prev.loading, [argName]: false },
-                errors: { ...prev.errors, [argName]: errorMessage },
-              }));
-            }
+          if (!abortController.signal.aborted) {
+            const errorMessage =
+              error instanceof Error
+                ? error.message
+                : "Failed to load suggestions";
+            setState((prev) => ({
+              ...prev,
+              loading: { ...prev.loading, [argName]: false },
+              errors: { ...prev.errors, [argName]: errorMessage },
+            }));
           }
         } finally {
-          if (abortControllerRef.current && (abortControllerRef.current as any).requestId === requestId) {
+          if (abortControllerRef.current === abortController) {
             abortControllerRef.current = null;
           }
         }

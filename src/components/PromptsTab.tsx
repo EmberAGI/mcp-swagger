@@ -203,24 +203,13 @@ export function PromptsTab({
                             )}
 
                             <div className="pt-4 border-t">
-                                <div className="flex gap-2">
-                                    <Button
-                                        onClick={() => handleGetPrompt(prompt)}
-                                        disabled={!isConnected || !!loadingByPrompt[prompt.name]}
-                                    >
-                                        <Play className="h-4 w-4 mr-2" />
-                                        {loadingByPrompt[prompt.name] ? "Getting Prompt..." : "Get Prompt"}
-                                    </Button>
-                                    {handleCompletion && completionsSupported && (
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => clearCompletions()}
-                                            className="bg-orange-500 hover:bg-orange-600 text-white border-orange-500 hover:border-orange-600"
-                                        >
-                                            Clear Completions
-                                        </Button>
-                                    )}
-                                </div>
+                                <Button
+                                    onClick={() => handleGetPrompt(prompt)}
+                                    disabled={!isConnected || !!loadingByPrompt[prompt.name]}
+                                >
+                                    <Play className="h-4 w-4 mr-2" />
+                                    {loadingByPrompt[prompt.name] ? "Getting Prompt..." : "Get Prompt"}
+                                </Button>
                             </div>
 
                             {errorByPrompt[prompt.name] && (

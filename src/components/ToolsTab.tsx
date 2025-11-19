@@ -14,42 +14,20 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import JsonView from "./JsonView";
 import { ToolResultRenderer } from "./ToolResultRenderer";
-import { useCompletionState, ToolReference } from "@/lib/hooks/useCompletionState";
-import { Combobox } from "@/components/ui/combobox";
 
 interface ToolsTabProps {
     tools: Tool[];
     onCallTool: (name: string, args: Record<string, unknown>) => Promise<any>;
     isConnected: boolean;
-    handleCompletion?: (
-        ref: ToolReference,
-        argName: string,
-        value: string,
-        context?: Record<string, string>,
-        signal?: AbortSignal
-    ) => Promise<string[]>;
-    completionsSupported?: boolean;
 }
 
-export function ToolsTab({ 
-    tools, 
-    onCallTool, 
-    isConnected,
-    handleCompletion,
-    completionsSupported = true
-}: ToolsTabProps) {
+export function ToolsTab({ tools, onCallTool, isConnected }: ToolsTabProps) {
     const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
     const [showDocs, setShowDocs] = useState<boolean>(false);
     const [toolArgumentsByName, setToolArgumentsByName] = useState<Record<string, Record<string, any>>>({});
     const [toolResultsByName, setToolResultsByName] = useState<Record<string, any>>({});
     const [toolErrorsByName, setToolErrorsByName] = useState<Record<string, string | null>>({});
     const [loadingTools, setLoadingTools] = useState<Record<string, boolean>>({});
-
-    const { completions, loading, errors, clearCompletions, requestCompletions, clearError } = useCompletionState(
-        handleCompletion ? (ref: any, argName: string, value: string, context?: Record<string, string>, signal?: AbortSignal) =>
-            handleCompletion(ref, argName, value, context, signal) : (async () => []),
-        completionsSupported && !!handleCompletion
-    );
 
     const toggleExpanded = (toolName: string) => {
         const newExpanded = new Set(expandedTools);
@@ -61,7 +39,7 @@ export function ToolsTab({
         setExpandedTools(newExpanded);
     };
 
-    const handleArgumentChange = (toolName: string, argName: string, value: string, isSelection: boolean = false) => {
+    const handleArgumentChange = (toolName: string, argName: string, value: string) => {
         setToolArgumentsByName(prev => ({
             ...prev,
             [toolName]: {
@@ -69,30 +47,6 @@ export function ToolsTab({
                 [argName]: value
             }
         }));
-
-        // Clear error when user starts typing
-        if (errors[argName]) {
-            clearError(argName);
-        }
-
-        // Request completions if supported, value is not empty, and user is typing (not selecting)
-        if (handleCompletion && completionsSupported && value.trim().length > 0 && !isSelection) {
-            // Build context with current args (useCompletionState will remove the current field)
-            const currentArgs = toolArgumentsByName[toolName] || {};
-            const context: Record<string, string> = {};
-            Object.entries({ ...currentArgs, [argName]: value }).forEach(([key, val]) => {
-                context[key] = typeof val === 'string' ? val : String(val);
-            });
-            requestCompletions(
-                {
-                    type: "ref/tool",
-                    name: toolName,
-                },
-                argName,
-                value,
-                context
-            );
-        }
     };
 
     const handleExecuteTool = async (tool: Tool) => {
@@ -379,7 +333,7 @@ export function ToolsTab({
                                                                             id={`param-${toolName}-${param.name}`}
                                                                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                                                                             value={toolArgs[param.name] || ''}
-                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value, true)}
+                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value)}
                                                                         >
                                                                             <option value="">Select {param.name}...</option>
                                                                             {param.enum.map((option: string) => (
@@ -394,7 +348,7 @@ export function ToolsTab({
                                                                                 type="checkbox"
                                                                                 id={`param-${toolName}-${param.name}`}
                                                                                 checked={toolArgs[param.name] || false}
-                                                                                onChange={(e) => handleArgumentChange(toolName, param.name, e.target.checked ? 'true' : 'false', true)}
+                                                                                onChange={(e) => handleArgumentChange(toolName, param.name, e.target.checked ? 'true' : 'false')}
                                                                                 className="h-4 w-4 rounded border-gray-300"
                                                                             />
                                                                         </div>
@@ -403,20 +357,8 @@ export function ToolsTab({
                                                                             id={`param-${toolName}-${param.name}`}
                                                                             placeholder={`Enter JSON for ${param.name}...`}
                                                                             value={toolArgs[param.name] || ''}
-                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value, false)}
+                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value)}
                                                                             className="min-h-[100px] font-mono text-sm"
-                                                                        />
-                                                                    ) : param.type === 'string' && handleCompletion && completionsSupported ? (
-                                                                        <Combobox
-                                                                            id={`param-${toolName}-${param.name}`}
-                                                                            value={toolArgs[param.name] || ''}
-                                                                            onChange={(value) => handleArgumentChange(toolName, param.name, value, true)}
-                                                                            onInputChange={(value) => handleArgumentChange(toolName, param.name, value, false)}
-                                                                            options={completions[param.name] || []}
-                                                                            loading={loading[param.name] || false}
-                                                                            error={errors[param.name]}
-                                                                            placeholder={`Enter ${param.name}...`}
-                                                                            emptyMessage="No suggestions available."
                                                                         />
                                                                     ) : (
                                                                         <Input
@@ -424,7 +366,7 @@ export function ToolsTab({
                                                                             type={param.type === 'number' || param.type === 'integer' ? 'number' : 'text'}
                                                                             placeholder={`Enter ${param.name}...`}
                                                                             value={toolArgs[param.name] || ''}
-                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value, false)}
+                                                                            onChange={(e) => handleArgumentChange(toolName, param.name, e.target.value)}
                                                                         />
                                                                     )}
                                                                 </div>
@@ -434,31 +376,20 @@ export function ToolsTab({
                                                 )}
 
                                                 <div className="pt-4 border-t">
-                                                    <div className="flex gap-2">
-                                                        <Button
-                                                            onClick={() => handleExecuteTool(tool)}
-                                                            disabled={!isConnected || isLoading}
-                                                            className="bg-orange-500 hover:bg-orange-600 text-white"
-                                                        >
-                                                            {isLoading ? (
-                                                                <>Loading...</>
-                                                            ) : (
-                                                                <>
-                                                                    <Play className="h-4 w-4 mr-2" />
-                                                                    Execute Tool
-                                                                </>
-                                                            )}
-                                                        </Button>
-                                                        {handleCompletion && completionsSupported && (
-                                                            <Button
-                                                                variant="outline"
-                                                                onClick={() => clearCompletions()}
-                                                                className="bg-orange-500 hover:bg-orange-600 text-white border-orange-500 hover:border-orange-600"
-                                                            >
-                                                                Clear Completions
-                                                            </Button>
+                                                    <Button
+                                                        onClick={() => handleExecuteTool(tool)}
+                                                        disabled={!isConnected || isLoading}
+                                                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                                                    >
+                                                        {isLoading ? (
+                                                            <>Loading...</>
+                                                        ) : (
+                                                            <>
+                                                                <Play className="h-4 w-4 mr-2" />
+                                                                Execute Tool
+                                                            </>
                                                         )}
-                                                    </div>
+                                                    </Button>
                                                 </div>
 
                                                 {/* Tool Result Renderer with toggle */}
