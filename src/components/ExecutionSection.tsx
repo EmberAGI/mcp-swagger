@@ -25,7 +25,9 @@ interface ExecutionSectionProps {
   onReadResource: (uri: string) => Promise<any>;
   isConnected: boolean;
   handleCompletion?: (
-    ref: { type: "ref/prompt"; name: string },
+    ref: 
+      | { type: "ref/prompt"; name: string }
+      | { type: "ref/tool"; name: string },
     argName: string,
     value: string,
     context?: Record<string, string>,
@@ -62,7 +64,7 @@ export function ExecutionSection({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
       {/* Left Column: Parameters and Execution */}
-      <Card className="bg-[#18181B] border-gray-700">
+      <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader>
           <CardTitle>
             {selectedItem.type === "tool" && "Tool Parameters"}
@@ -76,6 +78,8 @@ export function ExecutionSection({
               tools={[selectedItem.item]}
               onCallTool={onCallTool}
               isConnected={isConnected}
+              handleCompletion={handleCompletion}
+              completionsSupported={completionsSupported}
             />
           )}
           {selectedItem.type === "prompt" && (
@@ -98,7 +102,7 @@ export function ExecutionSection({
       </Card>
 
       {/* Right Column: Results */}
-      <Card className="bg-[#18181B] border-gray-700">
+      <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader>
           <CardTitle>Results</CardTitle>
         </CardHeader>

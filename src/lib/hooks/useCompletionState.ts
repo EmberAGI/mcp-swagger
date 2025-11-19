@@ -12,6 +12,11 @@ export type PromptReference = {
   name: string;
 };
 
+export type ToolReference = {
+  type: "ref/tool";
+  name: string;
+};
+
 function debounce<T extends (...args: any[]) => PromiseLike<void>>(
   func: T,
   wait: number
@@ -29,14 +34,14 @@ function debounce<T extends (...args: any[]) => PromiseLike<void>>(
 
 export function useCompletionState(
   handleCompletion: (
-    ref: ResourceReference | PromptReference,
+    ref: ResourceReference | PromptReference | ToolReference,
     argName: string,
     value: string,
     context?: Record<string, string>,
     signal?: AbortSignal
   ) => Promise<string[]>,
   completionsSupported: boolean = true,
-  debounceMs: number = 300
+  debounceMs: number = 500
 ) {
   const [state, setState] = useState<{
     completions: Record<string, string[]>;
@@ -51,10 +56,8 @@ export function useCompletionState(
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const cleanup = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
+    // Just clear the ref without aborting to avoid response reading issues
+    abortControllerRef.current = null;
   }, []);
 
   // Cleanup on unmount
@@ -74,7 +77,7 @@ export function useCompletionState(
   const requestCompletions = useMemo(() => {
     return debounce(
       async (
-        ref: ResourceReference | PromptReference,
+        ref: ResourceReference | PromptReference | ToolReference,
         argName: string,
         value: string,
         context?: Record<string, string>
@@ -83,10 +86,11 @@ export function useCompletionState(
           return;
         }
 
+        // Cancel previous request by simply tracking the latest one
+        // Don't use AbortController as it interferes with response reading
+        const requestId = Date.now();
         cleanup();
-
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
+        abortControllerRef.current = { requestId } as any;
 
         setState((prev) => ({
           ...prev,
@@ -102,15 +106,17 @@ export function useCompletionState(
             context = contextCopy;
           }
 
+          // Pass undefined for signal to avoid abort issues
           const values = await handleCompletion(
             ref,
             argName,
             value,
             context,
-            abortController.signal
+            undefined
           );
 
-          if (!abortController.signal.aborted) {
+          // Only update state if this is still the latest request
+          if (abortControllerRef.current && (abortControllerRef.current as any).requestId === requestId) {
             setState((prev) => ({
               ...prev,
               completions: { ...prev.completions, [argName]: values },
@@ -119,20 +125,33 @@ export function useCompletionState(
             }));
           }
         } catch (error) {
-          console.error("Completion failed:", error);
-          if (!abortController.signal.aborted) {
-            const errorMessage =
-              error instanceof Error
-                ? error.message
-                : "Failed to load suggestions";
-            setState((prev) => ({
-              ...prev,
-              loading: { ...prev.loading, [argName]: false },
-              errors: { ...prev.errors, [argName]: errorMessage },
-            }));
+          // Check if this is a response reading error
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const isResponseError = errorMessage.includes("already finished loading") ||
+                                 errorMessage.includes("Request with the provided ID") ||
+                                 errorMessage.includes("failed to load response data");
+
+          // Only update state if this is still the latest request
+          if (abortControllerRef.current && (abortControllerRef.current as any).requestId === requestId) {
+            if (isResponseError) {
+              // Silently handle response reading errors
+              setState((prev) => ({
+                ...prev,
+                loading: { ...prev.loading, [argName]: false },
+                errors: { ...prev.errors, [argName]: null },
+              }));
+            } else {
+              // Only log and show real errors
+              console.error("Completion failed:", error);
+              setState((prev) => ({
+                ...prev,
+                loading: { ...prev.loading, [argName]: false },
+                errors: { ...prev.errors, [argName]: errorMessage },
+              }));
+            }
           }
         } finally {
-          if (abortControllerRef.current === abortController) {
+          if (abortControllerRef.current && (abortControllerRef.current as any).requestId === requestId) {
             abortControllerRef.current = null;
           }
         }

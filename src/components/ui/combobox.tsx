@@ -114,7 +114,7 @@ export function Combobox({
     };
 
     return (
-        <div className="relative w-full">
+        <div className="relative w-full" data-browser-extension-ignore="true">
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <div className="relative w-full">
@@ -122,6 +122,15 @@ export function Combobox({
                             ref={inputRef}
                             id={id}
                             type="text"
+                            name={id}
+                            autoComplete="off"
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={open}
+                            aria-controls={open ? `${id}-listbox` : undefined}
+                            data-browser-extension-ignore="true"
+                            data-lpignore="true"
+                            data-form-type="other"
                             className={cn(
                                 "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
                                 error && "border-destructive focus-visible:ring-destructive",
@@ -168,6 +177,8 @@ export function Combobox({
                     align="start"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                     sideOffset={5}
+                    id={id ? `${id}-listbox` : undefined}
+                    role="listbox"
                 >
                     <Command shouldFilter={false}>
                         <CommandList>

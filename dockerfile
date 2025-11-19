@@ -40,6 +40,8 @@ RUN apk add --no-cache libc6-compat ca-certificates curl
 # The standalone directory already includes node_modules and server.js
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Custom entry to force HOSTNAME=0.0.0.0 before booting Next standalone server
+COPY server-entry.js ./server-entry.js
 # Public folder must be copied to the same directory as server.js for Next.js to serve it
 COPY --from=builder /app/public ./public
 
@@ -51,6 +53,5 @@ RUN addgroup --system --gid 1001 nodejs \
 USER nextjs
 
 EXPOSE 8080
-# Start Next.js server from standalone build
-# The standalone build includes server.js in the root
-CMD ["node", "server.js"]
+# Start Next.js server via the wrapper that normalises HOST/HOSTNAME
+CMD ["node", "server-entry.js"]

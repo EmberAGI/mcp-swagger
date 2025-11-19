@@ -90,7 +90,7 @@ export default function JsonView({ data, className, defaultExpanded = true }: Js
                         <div className="ml-4">
                             {keys.map(key => (
                                 <div key={key} className="my-1">
-                                    <span className="text-purple-600">"{key}"</span>: {renderValue((value as Record<string, unknown>)[key], `${path}.${key}`, depth + 1)}
+                                    <span className="text-orange-600">"{key}"</span>: {renderValue((value as Record<string, unknown>)[key], `${path}.${key}`, depth + 1)}
                                 </div>
                             ))}
                         </div>

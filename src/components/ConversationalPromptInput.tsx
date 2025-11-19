@@ -368,7 +368,7 @@ const ConversationalPromptInput = React.forwardRef<HTMLInputElement, Conversatio
                 )}
 
                 {paramCompletions.length > 0 && isActive && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-[#18181B] border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-gray-800 border rounded-md shadow-lg max-h-32 overflow-y-auto">
                         {paramCompletions.slice(0, 5).map((completion, idx) => (
                             <div
                                 key={idx}
